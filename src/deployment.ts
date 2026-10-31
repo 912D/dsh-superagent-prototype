@@ -88,7 +88,11 @@ export async function resolveDeployment(machine: Machine, github: unknown, probe
   const { stateDir } = machine
   const accounts = GithubAccountsSchema.parse(github ?? {})
   const remote = accounts.repository
-  if (!remote) throw new SetupError('repositoryUnset')
+  if (!remote) {
+    // 没有配置仓库时不再让整个部署检查失败：本机 MSP 信号与 GitHub 无关，
+    // 只把 GitHub 相关的字段留空，由各 Source 自己报告「未配置」。
+    return { ...machine, repository: '', github: { cli: '', login: '', noreply: '' } }
+  }
   if (!accounts.cli) throw new SetupError('agentCliUnset')
   let cli: string
   try { cli = executable(accounts.cli, path, workerBin(stateDir)) } catch (error) { throw new SetupError('agentCliMissing', { output: reason(error) }) }

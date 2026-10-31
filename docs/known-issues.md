@@ -64,3 +64,30 @@ if (!remote) throw new SetupError('repositoryUnset')
 
 **当前处理**：`scripts/dsh-superagent init` 自动写进 profile 的
 `cordis.patch.yml`。
+
+---
+
+## K4. `tools.restrict() names unknown global tool "bash"` —— Windows 上 orchestrator 初始化失败
+
+**位置**：`src/app/sessions.ts:263`
+
+```ts
+agent.ctx.tools.restrict({ allow: ['skill', 'bash', 'read', ...] })
+```
+
+**原因**：worker 会话的工具有名单写死了 POSIX 的 `bash`。Windows 上的 dsh 只提供
+`pwsh`，于是 `restrict()` 拒绝创建会话 → `orchestrator` 初始化失败 →
+`dsh-superagent` / `dsh-superagent-github` / `dsh-superagent-msp` 全部停在 `pending`，
+面板显示「dsh-superagent 没有响应」。
+
+**症状与真因的距离**：面板说的是「没有响应 / 可能正在重启」，真正的原因在
+DSH 日志里的一行 `RemoteError`。这也是 K3 的同款问题：**错误指向了错误的方向。**
+
+**修法**（已在本 fork 实现）：
+
+```ts
+allow: ['skill', process.platform === 'win32' ? 'pwsh' : 'bash', 'read', ...]
+```
+
+`src/app/sessions.ts:61` 的 `WORK_TOOLS` 也把 `bash` 和 `pwsh` 都列着，
+Windows 上过滤掉不存在的那一个更干净。
