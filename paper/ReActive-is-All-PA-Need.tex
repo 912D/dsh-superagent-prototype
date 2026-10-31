@@ -108,7 +108,7 @@
 \setlength{\parindent}{0pt}%
 个人助理（Personal Assistant，PA）的瓶颈早已不在单步推理，而在“反应”：能否被环境唤醒、能否在被打断后仍然连贯、能否在同一个情境里不必把同一件事想第二遍。一篇公开文章提出的 Super-agent 架构已经把“如何组织一个持续在线的 Agent”回答得相当完整，本文保留这套架构，只打两个补丁。\par\vspace{0.45em}
 补丁一是 \textbf{MSP}（Model Sensing Protocol），解决\emph{通用性}：一切皆节点、一切皆信号，任何能力与任何事件都以同一形态接入，于是 ReAct 的观察可以从“伸手调用工具”变为“订阅信号推送”。补丁二是 \textbf{Mem + Exp + SKILL}，解决\emph{习惯}：经验 $\mathrm{Exp}\in \mathrm{Mem}+\mathrm{SKILL}$ 是记忆与技能经后台整理后的精华，在触发时注入提示词，并且明确地\emph{未验证}——它是待检验的假设，不是事实。前者让反应通用，后者让反应有习惯。\par\vspace{0.45em}
-本文仍是一篇面向工程实践的架构思路探讨，并非对 DeepSeek Harness 现有产品功能的介绍，\textbf{与 DeepSeek 及其产品没有直接关系}：文中的基线架构叙述基于公开资料，两个补丁与全文写作由作者独立完成。MSP 已完整实现；Mem/Exp/SKILL 是实验性原型，7.3 节把“已完成”与“实验性”逐项分开。
+本文仍是一篇面向工程实践的架构思路探讨，并非对 DeepSeek Harness 现有产品功能的介绍，\textbf{与 DeepSeek 及其产品没有直接关系}：第 1 至 8 节的架构叙述与实验数据来自公开资料；两个补丁（MSP、Mem + Exp + SKILL）、与之对应的章节及全文的整理由作者完成，本文没有新增实验。MSP 已完整实现；Mem/Exp/SKILL 是实验性原型，7.3 节把“已完成”与“实验性”逐项分开。
 }
 \vspace{0.9em}
 {\color{dagray}\hrule height 0.4pt}
@@ -709,6 +709,6 @@ ReAct 给的是前两半：推理与行动已经在一个循环里（第 3 节�
 {\color{dagray}\hrule height 0.4pt}
 \vspace{0.35em}
 \noindent{\footnotesize\color{dagray}
-\textbf{声明。}本文为作者独立撰写的研究性文章，\textbf{与 DeepSeek 及其产品没有直接关系}，不代表 DeepSeek 的立场，也不构成对任何产品的介绍或背书。文中的基线架构叙述取自一篇公开发表的《Super-agent 设计探索》\url{https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg}；MSP 与 Mem/Exp/SKILL 的设计、实现与写作由作者完成。ReActive 是一个架构主张，其中的经验层仍属实验性工作，请勿当作成熟的工程承诺。\par}
+\textbf{声明。}本文为作者独立撰写的研究性文章，\textbf{与 DeepSeek 及其产品没有直接关系}，不代表 DeepSeek 的立场，也不构成对任何产品的介绍或背书。第 1 至 8 节的架构叙述与第 7 节的实验数据取自一篇公开发表的《Super-agent 设计探索》\url{https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg}；MSP 与 Mem/Exp/SKILL 的设计与实现、与之对应的章节以及全文的整理，由作者完成，本文不含新增实验。ReActive 是一个架构主张，其中的经验层仍属实验性工作，请勿当作成熟的工程承诺。\par}
 
 \end{document}
