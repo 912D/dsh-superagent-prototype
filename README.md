@@ -160,3 +160,5 @@ enabled: true
 ## 许可证
 
 MIT，与上游一致。上游 `deepseek-ai/dsh-superagent-prototype` 保留为 `upstream` remote。
+
+> Python 桥已从这个分支移除；需要它的版本见分支 `legacy/python-bridge`。
