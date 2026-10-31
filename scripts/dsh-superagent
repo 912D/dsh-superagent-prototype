@@ -7,7 +7,6 @@ and 3 when it runs and waits for setup. A restart fixes neither 2 nor 3: they ne
 """
 
 import argparse
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -20,6 +19,32 @@ import sys
 import time
 import urllib.error
 import urllib.request
+
+WINDOWS = os.name == 'nt'
+
+if WINDOWS:
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    CREATE_NO_WINDOW = 0x08000000
+    CREATE_DETACHED = 0x00000008
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    CTRL_C_EVENT = 0
+    # Runs detached so the caller keeps its own console; it attaches to the service console and sends one Ctrl+C.
+    # It usually dies from the very Ctrl+C it delivers, so exit 2 and 3 are the only meaningful codes.
+    CTRL_RELAY = ('import ctypes,os,sys\n'
+                  'from ctypes import wintypes\n'
+                  'k=ctypes.WinDLL("kernel32",use_last_error=True)\n'
+                  'k.FreeConsole()\n'
+                  'if not k.AttachConsole(int(sys.argv[1])): os._exit(2)\n'
+                  'h=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.DWORD)(lambda code: True)\n'
+                  'k.SetConsoleCtrlHandler(h,True)\n'
+                  'os._exit(0 if k.GenerateConsoleCtrlEvent(0,0) else 3)\n')
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+else:
+    import fcntl
 
 ROOT = Path(__file__).resolve().parent.parent
 ARTIFACTS = ROOT / '.artifacts'
@@ -37,6 +62,67 @@ def control(profile):
 def stopped(profile):
     """Return whether `profile` was intentionally stopped."""
     return (control(profile) / 'manually-stopped').exists()
+
+
+def lock_operation(handle):
+    """Take the exclusive operation lock without waiting (`flock` on POSIX, `msvcrt.locking` on Windows)."""
+    if WINDOWS:
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            raise BlockingIOError('operation in progress') from None
+    else:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def alive(pid):
+    """Return whether `pid` names a running Windows process; a reused PID is caught by the caller's image-name check."""
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return False
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def interrupt(pid, profile):
+    """Ask the service to shut down gracefully: SIGINT on POSIX, a console Ctrl+C on Windows."""
+    if not WINDOWS:
+        os.kill(pid, signal.SIGINT)
+        return
+    relay = subprocess.run([sys.executable, '-c', CTRL_RELAY, str(pid)],
+                           capture_output=True, creationflags=CREATE_DETACHED)
+    # A relay that delivered the signal is usually killed by it (0xC000013A); only its own failure codes are meaningful.
+    if relay.returncode == 2:
+        raise RuntimeError(f'PID {pid} has no console to receive Ctrl+C; stop it from Task Manager.')
+    if relay.returncode == 3:
+        raise RuntimeError(f'Ctrl+C could not be queued for PID {pid}; stop it from Task Manager.')
+
+
+def dsh_launcher():
+    """Return `(executable, leading arguments)` that run the DSH CLI without a shell."""
+    dsh = shutil.which('dsh')
+    if not dsh:
+        raise RuntimeError('dsh must be on PATH.')
+    if not WINDOWS:
+        return dsh, []
+    node = shutil.which('node')
+    if not node:
+        raise RuntimeError('node must be on PATH.')
+    if dsh.lower().endswith(('.cmd', '.bat')):
+        # An npm .cmd shim runs `node <dp0>\node_modules\...\bin.js %*`: start node itself so the recorded PID is the service.
+        text = Path(dsh).read_text(errors='replace')
+        match = re.search(r'"%dp0%\\([^"]+\.js)"', text)
+        entry = Path(dsh).parent / match.group(1).replace('\\', os.sep) if match else None
+        if match and entry and entry.exists():
+            return node, [str(entry)]
+        raise RuntimeError(f'Cannot find the DSH entry script behind {dsh}.')
+    return dsh, []
 
 
 def serves(args, profile):
@@ -70,6 +156,13 @@ def running(pid, profile):
 
 def processes(profile):
     """Return PIDs of all running DSH service processes for `profile`, including instances started outside this script and the recorded `service.pid` while still running."""
+    if WINDOWS:
+        # No `ps` to scan: the service.pid this script wrote is the only handle on the service.
+        try:
+            pid = int((control(profile) / 'service.pid').read_text())
+        except (OSError, ValueError):
+            return []
+        return [pid] if alive(pid) else []
     found = [pid for pid, name, args in ps('-ax', check=True) if name in ('node', 'dsh') and serves(args, profile)]
     try:
         pid = int((control(profile) / 'service.pid').read_text())
@@ -138,9 +231,9 @@ def stop(args, intentional=True):
     if intentional:
         (control(args.profile) / 'manually-stopped').write_text(time.strftime('%Y-%m-%dT%H:%M:%S%z') + '\n')
     for pid in pids:
-        os.kill(pid, signal.SIGINT)
+        interrupt(pid, args.profile)
     deadline = time.monotonic() + args.stop_timeout
-    while any(running(pid, args.profile) for pid in pids):
+    while any(alive(pid) if WINDOWS else running(pid, args.profile) for pid in pids):
         if time.monotonic() >= deadline:
             raise RuntimeError('Graceful stop timed out; no forced kill was sent. Check status.')
         time.sleep(0.5)
@@ -162,26 +255,37 @@ def start(args):
     if len(pids) > 1:
         raise RuntimeError('Multiple dsh-superagent processes found; refusing to start another.')
     if not pids:
-        dsh = shutil.which('dsh')
-        if not dsh or not shutil.which('tmux'):
-            raise RuntimeError('Both dsh and tmux must be on PATH.')
-        exists = subprocess.run(['tmux', 'has-session', '-t', '=' + session],
-                                capture_output=True).returncode == 0
+        executable, prefix = dsh_launcher()
+        exists = False
+        if not WINDOWS:
+            if not shutil.which('tmux'):
+                raise RuntimeError('tmux must be on PATH.')
+            exists = subprocess.run(['tmux', 'has-session', '-t', '=' + session],
+                                    capture_output=True).returncode == 0
         if state(args.url) is not None:
             raise RuntimeError('An existing orchestrator answers at this URL; refusing duplicate startup.')
         stamp = time.strftime('%Y%m%d-%H%M%S')
         log = ARTIFACTS / f'dsh-superagent-{args.profile}-{stamp}-{os.getpid()}.log'
         log.touch()
         prune_logs(args.profile)
-        # `exec` replaces the shell so the pane PID printed by tmux is the DSH service process itself.
-        command = ('umask 077; exec ' + shlex.join([dsh, '--profile', args.profile, '--no-open'])
-                   + ' >> ' + shlex.quote(str(log)) + ' 2>&1')
-        # Reuse an existing tmux session without disturbing other windows.
-        target = ['new-window', '-t', '=' + session + ':'] if exists else ['new-session', '-s', session]
-        pane = subprocess.run(['tmux', *target, '-d', '-P', '-F', '#{pane_pid}', '-n', 'server', '-c', str(ROOT), command],
-                              check=True, capture_output=True, text=True).stdout.strip()
-        if pane.isdigit():
-            (control(args.profile) / 'service.pid').write_text(pane + '\n')
+        if WINDOWS:
+            # A hidden console keeps Ctrl+C deliverable later, and leaves no tmux dependency.
+            with log.open('ab') as sink:
+                child = subprocess.Popen([executable, *prefix, '--profile', args.profile, '--no-open'],
+                                         cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=sink,
+                                         stderr=subprocess.STDOUT, close_fds=True,
+                                         creationflags=CREATE_NO_WINDOW)
+            (control(args.profile) / 'service.pid').write_text(f'{child.pid}\n')
+        else:
+            # `exec` replaces the shell so the pane PID printed by tmux is the DSH service process itself.
+            command = ('umask 077; exec ' + shlex.join([executable, '--profile', args.profile, '--no-open'])
+                       + ' >> ' + shlex.quote(str(log)) + ' 2>&1')
+            # Reuse an existing tmux session without disturbing other windows.
+            target = ['new-window', '-t', '=' + session + ':'] if exists else ['new-session', '-s', session]
+            pane = subprocess.run(['tmux', *target, '-d', '-P', '-F', '#{pane_pid}', '-n', 'server', '-c', str(ROOT), command],
+                                  check=True, capture_output=True, text=True).stdout.strip()
+            if pane.isdigit():
+                (control(args.profile) / 'service.pid').write_text(pane + '\n')
         print('Log: ' + str(log), flush=True)
     else:
         (control(args.profile) / 'service.pid').write_text(f'{pids[0]}\n')
@@ -226,7 +330,7 @@ def main():
     os.umask(0o077)
     with (control(args.profile) / 'operation.lock').open('a') as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_operation(lock)
         except BlockingIOError:
             raise RuntimeError('Another dsh-superagent control operation is in progress.') from None
         if args.respect_stop and args.action in ('start', 'restart') and stopped(args.profile):

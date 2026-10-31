@@ -32,7 +32,21 @@ tests/msp.test.mjs               8 项
 
 **对原型的改动：3 个文件各 1~6 行（登记），其余是新增。** 原有逻辑一行未动。
 
-## 跑法
+
+## 一键安装
+
+```sh
+dsh plugin --profile superagent add "github:hxh230802/dsh-superagent-prototype"
+```
+
+仓库里带了构建好的 `lib/`，所以从 git 装不需要在本机重新构建。
+装完补一个 `stateDir`（见上），然后：
+
+```sh
+python scripts/dsh-superagent start
+```
+
+## 跑法（手动）
 
 部署脚本 `scripts/dsh-superagent` 已经跨平台：POSIX 用 `flock` + `tmux`，Windows 用 `msvcrt` 锁 + 隐藏控制台进程 + `Ctrl+C` 投递。两边命令一样：
 
