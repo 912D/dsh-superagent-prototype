@@ -1,5 +1,5 @@
+.dsh*/
+.tools*/
 node_modules/
-lib/
+*.log
 .artifacts/
-.env
-coverage/
