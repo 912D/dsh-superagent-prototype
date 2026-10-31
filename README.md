@@ -1,39 +1,92 @@
-# dsh-superagent
+# dsh-superagent-reactive
 
-> **Research prototype for reference only, not an official DeepSeek product.** This code grew out of our team's day-to-day development work, with much of the engineering done by coding agents. Treat it as research code, not production-ready software. It may still contain bugs, and its coding style and engineering practices may be inconsistent. Review and adapt it before using it in your own environment.
->
-> We have adapted it for publication, so it is not identical to our internal version or the implementation described in *Exploring Super-agent Design: Towards a More Autonomous Agent System*. Some designs discussed in the article are directions for future development and are not implemented in this prototype.
+> **ReActive** 是 [DeepSeek 的 dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype) 的一个 fork。
+> 它保留原型的全部多任务调度能力，补上了原型里缺的两件事：**本机感知**（MSP）与**经验**（Experience）。
 
-dsh-superagent is a proactive coding agent for one GitHub repository, packaged as a bundle for [DeepSeek Harness](https://www.deepseek.com/en/harness/). It listens to GitHub and, optionally, Feishu. When someone allowed asks the agent for work, it opens a work item, works on it in its own agent session and directory, and answers in the original conversation, for example with a pull request. A web panel shows what needs a person.
+论文：[`paper/ReActive-is-All-PA-Need.pdf`](paper/ReActive-is-All-PA-Need.pdf)
 
-It is also a way of working with an agent: **take as little human attention as possible, and give as much value as possible.** An agent that can act for a whole team can also waste a whole team's attention, so it acts only when asked or when a rule the team wrote allows it, and speaks only when someone must act or can use a result. [docs/000-philosophy.md](docs/000-philosophy.md) explains the principle and what it asks of the operator.
+---
 
-## Setup
+## 为什么要这个 fork
 
-Setup has many steps, so an agent does it with you. Ask your coding agent:
+原型的感知是**轮询**（`src/sources/poll.ts`：14 天窗口，游标回退 5 秒），
+来源只有 GitHub 与飞书——两个都在云上，有 API、有配额。
 
-> Read SETUP.md in this repository and set up dsh-superagent with me.
+但在本机，软件不会给你 webhook。所以这个 fork 加了一个 Source：
 
-It asks one short question at a time, shows the full plan once, and then installs and configures everything. [SETUP.md](SETUP.md) is what it follows.
+| | 原型 | 本 fork |
+|---|---|---|
+| 感知方式 | 轮询远端 | **MSP 推送**（`@node.on("**")`） |
+| 拓扑 | AI 是中心，软件等它来问 | 网状，软件主动说 |
+| 经验 | 无（`grep -ri experience src/` 零结果） | **有**：`~/.dsh/tacit/experiences/*.md` |
 
-## Documentation
+## 加了什么
 
-Read the numbered documents in order; each builds only on the ones before it.
+```
+src/sources/msp.ts               MSP → Trigger（推送，不轮询）· 无人称 actor
+src/sources/experiences.ts       读经验库，按信号路径命中才注入
+src/sources/experience-tools.ts  经验 CRUD（list/read/create/update/disable）
+python/msp_bridge.py             MSP 信号 → 每行一条 JSON
+tests/msp.test.mjs               8 项
+```
 
-- [000 Philosophy](docs/000-philosophy.md)
-- [001 Domain model](docs/001-domain.md)
-- [002 Authorization](docs/002-authorization.md)
-- [003 Execution](docs/003-execution.md)
-- [004 Prompts](docs/004-prompts.md)
-- [005 Panel](docs/005-panel.md)
-- [006 Deployment](docs/006-deployment.md): manual setup, configuration, upgrades and troubleshooting
-- [007 Architecture](docs/007-architecture.md)
-- [008 Cookbook](docs/008-cookbook.md): adding a Source
+**对原型的改动：3 个文件各 1~6 行（登记），其余是新增。** 原有逻辑一行未动。
 
-## Development
+## 跑法
 
-`pnpm check` runs the typecheck, the tests and the build.
+原型的部署是 POSIX-only（用了 `fcntl`、`tmux`），Windows 上跑不了，**请在 WSL / Linux / macOS 里按它自己的 [SETUP.md](SETUP.md) 走**：
 
-## License
+```sh
+npm install -g @deepseek-ai/dsh@0.2.1-rc.3
+dsh superagent --from-default-profile web --dump-config > /dev/null
+dsh plugin --profile superagent add "link:$PWD"
+scripts/dsh-superagent start
+```
 
-[MIT](LICENSE)
+两个必须知道的部署细节：
+
+1. **`stateDir` 是必填**，缺了整行挂载不上（面板会显示「没有响应」）：
+   ```yaml
+   # ~/.dsh/profiles/superagent/cordis.patch.yml
+   - id: dsh-superagent
+     config:
+       stateDir: "/root/.dsh/state/superagent"
+   ```
+2. **MSP 桥需要一个 `python`**（不是 `python3`）和 `msp-py`：
+   ```sh
+   ln -sf "$(command -v python3)" /usr/local/bin/python
+   python3 -m pip install --break-system-packages msp-py
+   ```
+
+## 经验长什么样
+
+一条一个 `.md`，`条件 + 动作 + 理由`：
+
+```yaml
+---
+id: installer-ask
+trigger: file.**
+condition: true
+action: 不要安装，先问这个人装不装、装到哪
+trust_level: L3
+enabled: true
+---
+# 下载到安装包时先问
+安装包跑起来就有副作用，而且不可逆。
+```
+
+**只有命中的经验会进评估上下文**——所以经验越攒越多，提示词不会越来越长。
+模型可以通过 `experience_create` 自己写，但**新建最高只能 L3**：L1/L2 是「不用问就动手」，
+不能由模型自己授予。
+
+## 状态
+
+- MSP → Trigger → Engine：**通**（实测收到多条信号，`received` 计数递增）
+- 经验命中注入：**通**（日志：`经验 installer-ask,zip-archive`）
+- 经验 → 行为改变：**未验证**——Eval 目前对这批信号不开单，瓶颈在决策阈值，不在经验供给
+
+最后一条是诚实的：这条链的末端还没接上。
+
+## 许可证
+
+MIT，与上游一致。上游 `deepseek-ai/dsh-superagent-prototype` 保留为 `upstream` remote。
