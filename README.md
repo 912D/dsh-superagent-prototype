@@ -34,7 +34,7 @@ tests/msp.test.mjs               8 项
 
 ## 跑法
 
-原型的部署是 POSIX-only（用了 `fcntl`、`tmux`），Windows 上跑不了，**请在 WSL / Linux / macOS 里按它自己的 [SETUP.md](SETUP.md) 走**：
+部署脚本 `scripts/dsh-superagent` 已经跨平台：POSIX 用 `flock` + `tmux`，Windows 用 `msvcrt` 锁 + 隐藏控制台进程 + `Ctrl+C` 投递。两边命令一样：
 
 ```sh
 npm install -g @deepseek-ai/dsh@0.2.1-rc.3
@@ -42,6 +42,16 @@ dsh superagent --from-default-profile web --dump-config > /dev/null
 dsh plugin --profile superagent add "link:$PWD"
 scripts/dsh-superagent start
 ```
+
+Windows 上把 `scripts/dsh-superagent` 用 `python` 跑（没有 shebang 支持）：
+
+```powershell
+python scripts/dsh-superagent start
+python scripts/dsh-superagent status
+python scripts/dsh-superagent stop
+```
+
+> Windows 上的已知限制：进程发现只看本脚本写的 `service.pid`（没有 `ps` 可扫），所以**用别的命令手动拉起的服务，`status` 看不见**；`stop` 走的是控制台 `Ctrl+C`，服务必须由本脚本启动才停得掉。
 
 两个必须知道的部署细节：
 
@@ -57,6 +67,52 @@ scripts/dsh-superagent start
    ln -sf "$(command -v python3)" /usr/local/bin/python
    python3 -m pip install --break-system-packages msp-py
    ```
+
+
+## Windows 原生（实测可用）
+
+这个 fork **不需要 WSL**。它的服务脚本本来就有完整的 Windows 分支
+（`msvcrt.locking` 文件锁、`kernel32.OpenProcess` 查进程、隐藏控制台代替 tmux、Ctrl+C relay 代替 SIGINT）。
+
+```powershell
+# 1. 依赖
+npm install -g @deepseek-ai/dsh@0.2.1-rc.3
+python -m pip install msp-py
+
+# 2. 建 profile（一次性）
+dsh superagent --from-default-profile web --dump-config > $null
+dsh plugin --profile superagent add "link:$PWD"
+
+# 3. 补 stateDir（必填，缺了面板显示"没有响应"）
+#    %USERPROFILE%\.dsh\profiles\superagent\cordis.patch.yml
+#    - id: dsh-superagent
+#      config:
+#        stateDir: "F:/path/to/state"
+
+# 4. 启动
+python scripts/dsh-superagent start
+```
+
+实测输出：
+
+```
+pids: [66812]
+dsh web: http://127.0.0.1:3080/?token=...
+```
+
+**唯一坑**：别和 WSL 里的实例同时跑。WSL 的端口转发会占住 `127.0.0.1:3080`，
+而 `Get-NetTCPConnection` 看不见它（在 WSL relay 里）。遇到 `EADDRINUSE` 就 `wsl --shutdown`。
+
+## 踩坑记录（都是我自己踩的）
+
+| 症状 | 真因 | 修法 |
+|---|---|---|
+| `ModuleNotFoundError: fcntl` | 用 `bash` 跑了 Python 脚本，且文件是 CRLF | 用 `python scripts/dsh-superagent`，不要让 bash 执行它 |
+| `EADDRINUSE 127.0.0.1:3080` | WSL 实例占着端口 | `wsl --shutdown` 或换端口 |
+| 面板显示"没有响应" | `stateDir` 缺省值不存在，整行挂载不上 | profile 的 patch 里补 `stateDir` |
+| `spawn python ENOENT` | 只有 `python3`，没有 `python` | `ln -s python3 /usr/local/bin/python`（Windows 上通常自带 `python`） |
+| `bridge exited (2)` | 没装 `msp-py` | `pip install msp-py` |
+| 信号收到但 `received: 0` | 我把 `ctx.receive()` 的异常吞了 | 改成写进 health，面板才看得见 |
 
 ## 经验长什么样
 
