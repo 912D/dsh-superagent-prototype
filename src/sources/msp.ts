@@ -119,45 +119,38 @@ const available = (ctx: SourceContext): MspConfig | undefined => {
   return config
 }
 
-/** Reads the bridge's stdout as newline-delimited JSON and feeds each signal to the Engine. */
-export function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<unknown> {
-  return new Promise(resolve => {
-    let child: ChildProcessByStdio<null, Readable, Readable>
-    let seen = 0
-    let stopped = false
-    const finish = (): void => { stopped = true; resolve(undefined) }
-    const config = available(ctx)
-    if (!config) return finish()
+/**
+ * Drive MSP in-process with `msp-ts`: no child process, no Python, no stdout parsing.
+ *
+ * The Python bridge stays in `python/msp_bridge.py` for hosts without a Node MSP build,
+ * but it is no longer the path the service takes — one less moving part, one less install step.
+ */
+export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<unknown> {
+  const config = available(ctx)
+  if (!config) return
+  const globs = (config.paths ?? []).map(entry => entry?.path).filter(Boolean)
+  const patterns = globs.length > 0 ? globs : ['**']
 
-    const paths = (config.paths ?? []).map(entry => entry?.path).filter(Boolean)
-    const globs = paths.length > 0 ? paths : ['**']
-    try {
-      child = spawn(config.python, [config.bridge, '--node', config.nodeName, ...globs.flatMap(path => ['--path', path])], {
-        cwd: process.cwd(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      })
-    } catch (error) {
-      ctx.report('msp', { state: 'error', detail: `bridge failed to start: ${String(error)}` })
-      return finish()
-    }
+  let node: { on(p: string, cb: (sig: any) => void): unknown; start(): Promise<unknown>; stop(): void }
+  try {
+    const mod = (await import('msp-ts')) as { MSPNode: new (id: string, opts?: Record<string, unknown>) => any }
+    node = new mod.MSPNode(config.nodeName, { connectPolicy: 'eager' })
+  } catch (error) {
+    ctx.report('msp', { state: 'error', detail: `msp-ts unavailable: ${String(error).slice(0, 200)}` })
+    return
+  }
 
-    ctx.report('msp', health('starting', 'setupPending'))
-    const lines = createInterface({ input: child.stdout })
-    lines.on('line', line => {
-      if (stopped) return
-      const trimmed = line.trim()
-      if (!trimmed) return
-      let event: Record<string, unknown>
-      try { event = JSON.parse(trimmed) as Record<string, unknown> } catch { return }
-      if (event.ready === true) { ctx.report('msp', { state: 'ready', detail: `listening: ${globs.join(', ')}` }); return }
-      const trigger = mspTrigger(event, config)
-      if (!trigger) {
-        ctx.report('msp', { state: 'error', detail: `signal ignored: ${trimmed.slice(0, 160)}` })
-        return
-      }
-      // 经验：只把**命中这条信号**的经验拼进评估上下文。
-      // 没命中的一个字都不进 prompt，所以经验越多，提示词不会越长。
+  let seen = 0
+  for (const pattern of patterns) {
+    node.on(pattern, sig => {
+      if (signal.aborted) return
+      const trigger = mspTrigger({
+        node: sig?.source ?? config.nodeName,
+        path: sig?.path,
+        at: typeof sig?.at === 'number' ? new Date(sig.at).toISOString() : sig?.at,
+        payload: sig?.payload,
+      }, config)
+      if (!trigger) return
       const hits = matchExperiences(trigger.meta.mspPath as string, trigger.meta as Record<string, unknown>)
       const block = experienceBlock(hits)
       if (block) trigger.text = `${trigger.text}
@@ -165,26 +158,23 @@ ${block}`
       seen += 1
       ctx.report('msp', {
         state: 'ready',
-        detail: `listening: ${globs.join(', ')} · seen ${seen}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''}`,
+        detail: `listening: ${patterns.join(', ')} · seen ${seen}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''}`,
       })
       Promise.resolve(ctx.receive(trigger)).catch(error => {
-        // 吞掉异常会让「没进 Engine」变成黑盒：把它写进 health，面板上直接看得见。
         ctx.report('msp', { state: 'error', detail: `receive failed: ${String(error).slice(0, 240)}` })
       })
     })
-    child.stderr.on('data', chunk => {
-      const text = String(chunk).trim()
-      if (text) ctx.report('msp', { state: 'paused', detail: text.slice(0, 300) })
-    })
-    const stop = (detail: string): void => {
-      if (stopped) return
-      ctx.report('msp', { state: 'error', detail })
-      finish()
-    }
-    child.on('error', error => stop(String(error)))
-    child.on('exit', code => stop(`bridge exited (${code ?? 'signal'})`))
-    signal.addEventListener('abort', () => { stopped = true; child.kill(); finish() }, { once: true })
-  })
+  }
+
+  try {
+    await node.start()
+  } catch (error) {
+    ctx.report('msp', { state: 'error', detail: `msp node start failed: ${String(error).slice(0, 200)}` })
+    return
+  }
+  ctx.report('msp', { state: 'ready', detail: `listening: ${patterns.join(', ')}` })
+  signal.addEventListener('abort', () => { try { node.stop() } catch { /* already gone */ } }, { once: true })
+  return undefined
 }
 
 export const name = 'dsh-superagent-msp'
