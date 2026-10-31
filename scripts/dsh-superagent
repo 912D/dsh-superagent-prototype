@@ -312,6 +312,10 @@ def start(args):
 
 def init(args):
     """Create the profile, install this bundle into it, and write the required stateDir."""
+    if not shutil.which('dsh'):
+        raise RuntimeError(
+            'dsh is not on PATH. Install it first: '
+            'npm install -g @deepseek-ai/dsh@0.2.1-rc.3')
     home = Path(os.environ.get('DSH_HOME') or (Path.home() / '.dsh'))
     patch = home / 'profiles' / args.profile / 'cordis.patch.yml'
     state = home / 'state' / args.profile
@@ -329,8 +333,8 @@ def init(args):
         line = '\n- id: dsh-superagent\n  config:\n    stateDir: "'
         patch.write_text(text.rstrip() + line + state_dir + '"\n', encoding='utf-8')
         print('wrote stateDir: ' + state_dir)
-    print('ready: python ' + Path(__file__).name + ' start')
-    return 0
+    print('starting dsh-superagent')
+    return start(args)
 
 
 def main():
