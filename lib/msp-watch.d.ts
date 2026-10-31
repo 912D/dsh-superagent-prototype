@@ -9,8 +9,6 @@ declare const MspConfigSchema: z.ZodObject<{
   paths: z.ZodDefault<z.ZodArray<z.ZodObject<{
     path: z.ZodString;
   }, z.core.$strip>>>;
-  python: z.ZodDefault<z.ZodString>;
-  bridge: z.ZodDefault<z.ZodString>;
   nodeName: z.ZodDefault<z.ZodString>;
   humanPaths: z.ZodDefault<z.ZodArray<z.ZodString>>;
 }, z.core.$strip>;

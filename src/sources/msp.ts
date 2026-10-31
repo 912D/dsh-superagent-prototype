@@ -6,9 +6,9 @@
  * publisher pushes and never learns who received it. So this kind has **no cursor, no
  * polling horizon, and no backoff** — a signal either arrives or the node is gone.
  *
- * The transport is a Python bridge (`python/msp_bridge.py`) printing one JSON line per
- * signal on stdout. That keeps the wire format of MSP in its own implementation instead of
- * re-deriving it here, and it costs one child process.
+ * The transport is `msp-ts`, vendored under `vendor/msp-ts` and driven in-process:
+ * no child process, no Python, no stdout parsing. The old Python bridge lives on the
+ * `legacy/python-bridge` branch.
  *
  * Trigger mapping: one signal → one Trigger. `threads[0]` is the signal's *topic* (the first
  * two path segments, e.g. `file.created`), so follow-ups on the same topic reach the same
@@ -34,10 +34,6 @@ export const MspConfigSchema = z.object({
   /** Signal path globs the bridge subscribes to; `**` is everything the node hears.
    *  The panel edits this as `rows` with one `path` column, so the stored shape is objects. */
   paths: z.array(z.object({ path: z.string() })).default([{ path: '**' }]),
-  /** Python executable that has `msp` importable. */
-  python: z.string().default('python'),
-  /** Path to the bridge script, relative to the package root unless absolute. */
-  bridge: z.string().default('python/msp_bridge.py'),
   /** Name this node announces under; a second Super-agent on the machine needs another. */
   nodeName: z.string().default('superagent'),
   /** Signals whose payload marks a person as the author become human Triggers. */
@@ -93,8 +89,6 @@ export const mspKind: SourceKind<MspConfig> = {
   fields: [
     { key: 'paths', label: { zh: '订阅的信号路径', en: 'Signal paths' }, hint: { zh: '例如 **、file.**、notify.message', en: 'e.g. **, file.**, notify.message' }, type: 'rows', columns: [{ key: 'path', label: { zh: '路径', en: 'Path' }, type: 'text' }] },
     { key: 'nodeName', label: { zh: '本节点名称', en: 'Node name' }, type: 'text' },
-    { key: 'python', label: { zh: 'Python 可执行文件', en: 'Python executable' }, type: 'text', advanced: true },
-    { key: 'bridge', label: { zh: '桥接脚本', en: 'Bridge script' }, type: 'text', advanced: true },
   ],
   health: ['msp'],
   /**
