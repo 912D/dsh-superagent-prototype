@@ -33,6 +33,12 @@ tests/msp.test.mjs               8 项
 **对原型的改动：3 个文件各 1~6 行（登记），其余是新增。** 原有逻辑一行未动。
 
 
+## 安装
+
+> **让 AI 替你装**：把这句话发给你的 Agent ——「读 INSTALL.md，装好 dsh-superagent-reactive」。
+>
+> 或者一条命令：
+
 ## 一键安装
 
 ```sh
