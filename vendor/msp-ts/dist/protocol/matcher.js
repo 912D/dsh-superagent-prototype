@@ -11,6 +11,9 @@
  *   `**` 末尾   `system.**` 匹配 `system` 及其下任意层（零或多段）
  */
 export function patternMatches(pattern, path) {
+    // 裸 `**` / `*` 是「全收」：没有基名前缀时上面两条 endsWith 分支都不命中。
+    if (pattern === "**" || pattern === "*")
+        return true;
     if (pattern === path)
         return true;
     if (pattern.endsWith(".**")) {

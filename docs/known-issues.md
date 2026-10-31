@@ -91,3 +91,39 @@ allow: ['skill', process.platform === 'win32' ? 'pwsh' : 'bash', 'read', ...]
 
 `src/app/sessions.ts:61` 的 `WORK_TOOLS` 也把 `bash` 和 `pwsh` 都列着，
 Windows 上过滤掉不存在的那一个更干净。
+
+---
+
+## K5（已修复）. 收不到信号：旧 MSP 节点没停，占着租约
+
+**位置**：`src/sources/msp.ts` 的 `runMsp`
+
+**症状**：发布端 `publish` 成功（`[msp-dbg] sent to=superagent`），服务端
+`dispatch` 一条消息都收不到，`received: 0`。两侧对同一条连接的状态判断不一致。
+
+**原因**：插件每次重载都会 `new MSPNode('superagent')`，旧节点没有 `stop()`。
+旧节点仍占着租约（`~/.msp/nodes/superagent.json`）与端口，新节点抢不到连接，
+发出方连过去连的是那个已经没人读的僵尸节点。
+
+**为什么只在插件里复现**：裸跑两个节点只加载一次；插件会被反复 reload。
+
+**修法**：模块级单例，起新的之前先停旧的：
+
+```ts
+let currentNode: { stop(): void } | null = null
+// runMsp 开头
+if (currentNode) { try { currentNode.stop() } catch {} currentNode = null }
+// start 之后
+currentNode = node
+```
+
+**定位方法**（值得记）：用两个裸 msp-ts 节点做隔离实验——如果能通，问题就在
+宿主侧的实例管理，不在协议。
+
+---
+
+## K6（已修复）. `patternMatches` 不认裸 `**`
+
+`'**'` 既不等于任何路径，也不以 `.**` / `.*` 结尾，旧的 `patternMatches` 直接
+`return false`。所以订阅 `**` 等于什么都没订阅。已在 `vendor/msp-ts` 里补上
+`pattern === '**' || pattern === '*'`（应向上游反馈）。

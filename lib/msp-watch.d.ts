@@ -26,12 +26,6 @@ declare function mspTrigger(event: {
   human?: boolean;
 }, config: Pick<MspConfig, 'humanPaths'>): Trigger | undefined;
 declare const mspKind: SourceKind<MspConfig>;
-/**
- * Drive MSP in-process with `msp-ts`: no child process, no Python, no stdout parsing.
- *
- * The Python bridge stays in `python/msp_bridge.py` for hosts without a Node MSP build,
- * but it is no longer the path the service takes — one less moving part, one less install step.
- */
 declare function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<unknown>;
 declare const name = "dsh-superagent-msp";
 declare const inject: string[];

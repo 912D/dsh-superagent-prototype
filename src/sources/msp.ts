@@ -119,9 +119,16 @@ const available = (ctx: SourceContext): MspConfig | undefined => {
  * The Python bridge stays in `python/msp_bridge.py` for hosts without a Node MSP build,
  * but it is no longer the path the service takes — one less moving part, one less install step.
  */
+/** 上一次启动的节点。插件会重载，旧节点不停就会占着租约和端口，新节点抢不到连接。 */
+let currentNode: { stop(): void } | null = null
+
 export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<unknown> {
   const config = available(ctx)
   if (!config) return
+  if (currentNode) {
+    try { currentNode.stop() } catch { /* 已经没了 */ }
+    currentNode = null
+  }
   const globs = (config.paths ?? []).map(entry => entry?.path).filter(Boolean)
   const patterns = globs.length > 0 ? globs : ['**']
 
@@ -137,6 +144,8 @@ export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<u
   let seen = 0
   for (const pattern of patterns) {
     node.on(pattern, sig => {
+      // 先报告一次「回调真的进来了」，再判断能不能用——否则死在这里是黑盒。
+      ctx.report('msp', { state: 'ready', detail: `hit ${pattern}: ${JSON.stringify(sig).slice(0, 140)}` })
       if (signal.aborted) return
       const trigger = mspTrigger({
         node: sig?.source ?? config.nodeName,
@@ -166,6 +175,7 @@ ${block}`
     ctx.report('msp', { state: 'error', detail: `msp node start failed: ${String(error).slice(0, 200)}` })
     return
   }
+  currentNode = node
   ctx.report('msp', { state: 'ready', detail: `listening: ${patterns.join(', ')}` })
   signal.addEventListener('abort', () => { try { node.stop() } catch { /* already gone */ } }, { once: true })
   return undefined
