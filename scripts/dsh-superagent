@@ -310,9 +310,32 @@ def start(args):
     raise RuntimeError('Startup health check timed out; inspect the log. Any running process was left intact.')
 
 
+def init(args):
+    """Create the profile, install this bundle into it, and write the required stateDir."""
+    home = Path(os.environ.get('DSH_HOME') or (Path.home() / '.dsh'))
+    patch = home / 'profiles' / args.profile / 'cordis.patch.yml'
+    state = home / 'state' / args.profile
+    if not patch.parent.exists():
+        print('creating profile ' + args.profile + ' from the Web template')
+        subprocess.run(['dsh', 'superagent', '--from-default-profile', 'web', '--dump-config'],
+                       stdout=subprocess.DEVNULL, check=True)
+    print('installing ' + str(ROOT) + ' into profile ' + args.profile)
+    subprocess.run(['dsh', 'plugin', '--profile', args.profile, 'add', 'link:' + str(ROOT)], check=True)
+    text = patch.read_text(encoding='utf-8') if patch.exists() else ''
+    if 'stateDir' not in text:
+        state.mkdir(parents=True, exist_ok=True)
+        patch.parent.mkdir(parents=True, exist_ok=True)
+        state_dir = str(state).replace(os.sep, '/')
+        line = '\n- id: dsh-superagent\n  config:\n    stateDir: "'
+        patch.write_text(text.rstrip() + line + state_dir + '"\n', encoding='utf-8')
+        print('wrote stateDir: ' + state_dir)
+    print('ready: python ' + Path(__file__).name + ' start')
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['start', 'stop', 'restart', 'status'])
+    parser.add_argument('action', choices=['init', 'start', 'stop', 'restart', 'status'])
     parser.add_argument('--profile', default=os.environ.get('DSH_SUPERAGENT_PROFILE') or 'superagent',
                         help='DSH profile that loads dsh-superagent; its tmux session is dsh-<profile>.')
     parser.add_argument('--url', default=os.environ.get('DSH_SUPERAGENT_URL') or 'http://127.0.0.1:3082',
@@ -336,6 +359,8 @@ def main():
         if args.respect_stop and args.action in ('start', 'restart') and stopped(args.profile):
             print('Intentional stop is active; automatic recovery skipped.')
             return 0
+        if args.action == 'init':
+            return init(args)
         if args.action == 'status':
             return status(args)
         if args.action in ('stop', 'restart'):
