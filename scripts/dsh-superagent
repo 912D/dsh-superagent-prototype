@@ -312,7 +312,10 @@ def start(args):
 
 def init(args):
     """Create the profile, install this bundle into it, and write the required stateDir."""
-    if not shutil.which('dsh'):
+    # Windows 上 which('dsh') 可能返回 .ps1 或 shell 脚本，subprocess 都执行不了；
+    # 优先拿 .cmd / .exe。
+    dsh = shutil.which('dsh.cmd') or shutil.which('dsh.exe') or shutil.which('dsh')
+    if not dsh:
         raise RuntimeError(
             'dsh is not on PATH. Install it first: '
             'npm install -g @deepseek-ai/dsh@0.2.1-rc.3')
@@ -321,11 +324,15 @@ def init(args):
     state = home / 'state' / args.profile
     if not patch.parent.exists():
         print('creating profile ' + args.profile + ' from the Web template')
-        subprocess.run(['dsh', 'superagent', '--from-default-profile', 'web', '--dump-config'],
+        subprocess.run([dsh, 'superagent', '--from-default-profile', 'web', '--dump-config'],
                        stdout=subprocess.DEVNULL, check=True)
     print('installing ' + str(ROOT) + ' into profile ' + args.profile)
-    subprocess.run(['dsh', 'plugin', '--profile', args.profile, 'add', 'link:' + str(ROOT)], check=True)
+    subprocess.run([dsh, 'plugin', '--profile', args.profile, 'add', 'link:' + str(ROOT)], check=True)
     text = patch.read_text(encoding='utf-8') if patch.exists() else ''
+    # 新建的 profile 里这个文件是注释 + 一个空的 `[]`。直接追加会让两个 YAML 文档粘在一起，
+    # 解析器报 "document separator is expected"。先把 `[]` 摘掉。
+    if text.strip().splitlines() and text.strip().splitlines()[-1].strip() == '[]':
+        text = chr(10).join(text.strip().splitlines()[:-1]) + chr(10)
     if 'stateDir' not in text:
         state.mkdir(parents=True, exist_ok=True)
         patch.parent.mkdir(parents=True, exist_ok=True)

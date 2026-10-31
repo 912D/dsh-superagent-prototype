@@ -89,7 +89,13 @@ export function triggerMatches(trigger: string, path: string): boolean {
     const re = new RegExp(`^${t.split('.').map(s => (s === '*' ? '[^.]+' : s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join('\\.')}$`)
     return re.test(path)
   }
-  return path === t || path.startsWith(`${t}.`)
+  if (path === t || path.startsWith(`${t}.`)) return true
+  // 同族匹配：`file.created` 也适用于 `file.modified` / `file.deleted`——
+  // 经验写的是「来了一个文件该怎么办」，文件是被创建还是被改名，不该决定它适不适用。
+  const want = t.split('.')
+  const got = path.split('.')
+  return want.length === got.length && want.length > 1 &&
+    want.slice(0, -1).join('.') === got.slice(0, -1).join('.')
 }
 
 /** 条件只支持 `true` 与 `字段 == 值`，够用且不会误判。 */
@@ -97,10 +103,16 @@ export function conditionHolds(condition: string, context: Record<string, unknow
   const c = String(condition ?? 'true').trim()
   if (!c || c === 'true') return true
   if (c === 'false') return false
-  const m = /^([A-Za-z_][\w.]*)\s*==\s*(.+)$/.exec(c)
-  if (!m) return false
-  const value = m[1].split('.').reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), context)
-  return String(value ?? '') === m[2].trim().replace(/^["']|["']$/g, '')
+  const pick = (path: string): unknown =>
+    path.split('.').reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), context)
+  const eq = /^([A-Za-z_][\w.]*)\s*==\s*(.+)$/.exec(c)
+  if (eq) return String(pick(eq[1]) ?? '') === eq[2].trim().replace(/^["']|["']$/g, '')
+  // `file.extension in ["pdf", "docx"]`：经验里最常用的一种写法，必须认。
+  const inList = /^([A-Za-z_][\w.]*)\s+in\s+\[(.*)\]$/.exec(c)
+  if (inList) {
+    const allowed = inList[2].split(',').map(x => x.trim().replace(/^["']|["']$/g, '').toLowerCase())
+    return allowed.includes(String(pick(inList[1]) ?? '').toLowerCase())
+  }
 }
 
 /** 命中这个信号的经验，按 id 排序，最多 `limit` 条。 */

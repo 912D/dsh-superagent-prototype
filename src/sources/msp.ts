@@ -24,7 +24,7 @@ import { z } from 'zod'
 import type { Trigger } from '../core/index.ts'
 import { health, sourceContext, type SourceContext } from './host.ts'
 import type { Localized, SourceKind } from './kind.ts'
-import { experienceBlock, matchExperiences } from './experiences.ts'
+import { experienceBlock, loadExperiences, matchExperiences } from './experiences.ts'
 import { registerExperienceTools } from './experience-tools.ts'
 
 export const SOURCE = 'msp'
@@ -154,14 +154,22 @@ export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<u
         payload: sig?.payload,
       }, config)
       if (!trigger) return
-      const hits = matchExperiences(trigger.meta.mspPath as string, trigger.meta as Record<string, unknown>)
+      const payload = (trigger.meta.mspPayload ?? {}) as Record<string, unknown>
+      const named = String(payload.name ?? payload.path ?? '')
+      const extension = named.includes('.') ? named.split('.').pop()!.toLowerCase() : ''
+      const hits = matchExperiences(trigger.meta.mspPath as string, {
+        ...trigger.meta,
+        payload,
+        file: { name: named, extension },
+        signal: { path: trigger.meta.mspPath },
+      })
       const block = experienceBlock(hits)
       if (block) trigger.text = `${trigger.text}
 ${block}`
       seen += 1
       ctx.report('msp', {
         state: 'ready',
-        detail: `listening: ${patterns.join(', ')} · seen ${seen}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''}`,
+        detail: `listening: ${patterns.join(', ')} · seen ${seen} · exp ${hits.length}/${loadExperiences().length}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''} · path ${String(trigger.meta.mspPath)}`,
       })
       Promise.resolve(ctx.receive(trigger)).catch(error => {
         ctx.report('msp', { state: 'error', detail: `receive failed: ${String(error).slice(0, 240)}` })
