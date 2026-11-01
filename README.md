@@ -41,15 +41,14 @@ tests/msp.test.mjs               8 项
 
 ## 一键安装
 
-```sh
-dsh plugin --profile superagent add "github:hxh230802/dsh-superagent-prototype"
-```
+**桌面端（推荐）**：设置 → 插件 → 装 `github:hxh230802/dsh-superagent-prototype`，然后重启桌面端。
 
-仓库里带了构建好的 `lib/`，所以从 git 装不需要在本机重新构建。
-装完补一个 `stateDir`（见上），然后：
+`stateDir` 有默认值（`<DSH home>/state/superagent`），装完侧栏就有 **Superagent**，不需要 Python、tmux，也不用另外起一个 web 服务。代价是它和你日常用的 profile 共用一个进程（bundle 会改这个进程的 `PATH` 和 worker 的 git 配置）；在意隔离就用下面的独立 profile。
+
+**独立 profile（服务器部署 / 想要干净实例）**：
 
 ```sh
-python scripts/dsh-superagent start
+python scripts/dsh-superagent init     # 建 profile、装 bundle、写 stateDir、起服务、打印地址
 ```
 
 ## 跑法（手动）
@@ -73,20 +72,17 @@ python scripts/dsh-superagent stop
 
 > Windows 上的已知限制：进程发现只看本脚本写的 `service.pid`（没有 `ps` 可扫），所以**用别的命令手动拉起的服务，`status` 看不见**；`stop` 走的是控制台 `Ctrl+C`，服务必须由本脚本启动才停得掉。
 
-两个必须知道的部署细节：
+两个部署细节：
 
-1. **`stateDir` 是必填**，缺了整行挂载不上（面板会显示「没有响应」）：
+1. **`stateDir` 可以留空**，默认 `<DSH home>/state/superagent`，设了 `DSH_HOME` 它跟着变。要换位置才写：
    ```yaml
    # ~/.dsh/profiles/superagent/cordis.patch.yml
    - id: dsh-superagent
      config:
        stateDir: "/root/.dsh/state/superagent"
    ```
-2. **MSP 桥需要一个 `python`**（不是 `python3`）和 `msp-py`：
-   ```sh
-   ln -sf "$(command -v python3)" /usr/local/bin/python
-   python3 -m pip install --break-system-packages msp-py
-   ```
+   两个 profile 同时跑 dsh-superagent，必须给不同的 `stateDir`。
+2. **`start` 之前会先看状态锁**：上一个实例被强杀时，`proper-lockfile` 的锁要 30 秒才过期，期间启动会报 `Lock file is already being held`。新版脚本会自己等；老版本删掉 `<stateDir>.lock` 目录再启动。
 
 
 ## Windows 原生（实测可用）
@@ -97,19 +93,12 @@ python scripts/dsh-superagent stop
 ```powershell
 # 1. 依赖
 npm install -g @deepseek-ai/dsh@0.2.1-rc.3
-python -m pip install msp-py
 
 # 2. 建 profile（一次性）
 dsh superagent --from-default-profile web --dump-config > $null
 dsh plugin --profile superagent add "link:$PWD"
 
-# 3. 补 stateDir（必填，缺了面板显示"没有响应"）
-#    %USERPROFILE%\.dsh\profiles\superagent\cordis.patch.yml
-#    - id: dsh-superagent
-#      config:
-#        stateDir: "F:/path/to/state"
-
-# 4. 启动
+# 3. 启动（stateDir 有默认值，不用再手写）
 python scripts/dsh-superagent start
 ```
 
@@ -129,9 +118,9 @@ dsh web: http://127.0.0.1:3080/?token=...
 |---|---|---|
 | `ModuleNotFoundError: fcntl` | 用 `bash` 跑了 Python 脚本，且文件是 CRLF | 用 `python scripts/dsh-superagent`，不要让 bash 执行它 |
 | `EADDRINUSE 127.0.0.1:3080` | WSL 实例占着端口 | `wsl --shutdown` 或换端口 |
-| 面板显示"没有响应" | `stateDir` 缺省值不存在，整行挂载不上 | profile 的 patch 里补 `stateDir` |
+| 面板显示"没有响应" | 上一个实例被强杀，`proper-lockfile` 的锁还没过期（30 秒） | 等 30 秒，或删掉 `<stateDir>.lock` 目录；新版 `start` 会自己等 |
 | `spawn python ENOENT` | 只有 `python3`，没有 `python` | `ln -s python3 /usr/local/bin/python`（Windows 上通常自带 `python`） |
-| `bridge exited (2)` | 没装 `msp-py` | `pip install msp-py` |
+| `bridge exited (2)` | 旧版（带 Python 桥的分支）缺 `msp-py` | 换到 main：桥已移除，用 `msp-ts` |
 | 信号收到但 `received: 0` | 我把 `ctx.receive()` 的异常吞了 | 改成写进 health，面板才看得见 |
 
 ## 经验长什么样

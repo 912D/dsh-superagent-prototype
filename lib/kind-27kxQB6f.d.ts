@@ -672,6 +672,7 @@ type Family<V, A extends unknown[]> = ((...name: A) => Key<V>) & {
 declare const HEALTH_TEXT: {
   readonly setupPending: "Waiting for the deployment check";
   readonly sourceOff: "Off";
+  readonly repositoryUnset: "The GitHub Source names no repository yet";
   readonly feishuCliUnset: "The Source is on, and its bot lark-cli is not set";
   readonly feishuBotMissing: "Waiting for the Feishu bot";
   readonly pollFailures: "{count} consecutive failed polls; last: {error}";

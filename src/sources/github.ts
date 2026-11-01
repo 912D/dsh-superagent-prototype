@@ -130,6 +130,8 @@ async function watch(ctx: SourceContext, signal: AbortSignal): Promise<void> {
   await ctx.ready
   // Setup restarts dsh-superagent once it resolves the accounts; until then nothing is polled.
   if (!ctx.configured()) { ctx.report('github', health('paused', 'setupPending')); return }
+  // Without a repository there is nothing to read: stay paused instead of failing every poll with an empty CLI.
+  if (!ctx.deployment.repository) { ctx.report('github', health('paused', 'repositoryUnset')); return }
   while (!signal.aborted) {
     const config = ctx.config<GithubConfig>(SOURCE)
     try {

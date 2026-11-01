@@ -54,16 +54,17 @@ if (!remote) throw new SetupError('repositoryUnset')
 
 ---
 
-## K3（已绕过）. `stateDir` 缺失导致整行挂载不上
+## K3（已修复）. `stateDir` 缺失导致整行挂载不上
 
 **位置**：`src/deployment.ts:16`
 
-`stateDir` 是 `.required()`，但 `--from-default-profile` 建出来的 profile
+`stateDir` 曾是 `.required()`，但 `--from-default-profile` 建出来的 profile
 不会写它。缺了不会报「缺配置」，而是整行 mount 失败，面板只显示
 「dsh-superagent 没有响应」——错误指向了错误的方向。
 
-**当前处理**：`scripts/dsh-superagent init` 自动写进 profile 的
-`cordis.patch.yml`。
+**修法**：schema 给默认值 `<DSH home>/state/superagent`（`DSH_HOME` 改了它也跟着改），
+所以从插件市场直装就能挂上；profile 里写了 `stateDir` 仍然覆盖默认值。
+`scripts/dsh-superagent init` 仍会显式写一条，是为了让路径可见。
 
 ---
 
