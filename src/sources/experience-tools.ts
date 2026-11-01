@@ -53,11 +53,12 @@ function render(d: Draft): string {
   ].join('\n')
 }
 
-function clampTrust(input: string | undefined): string {
+/** Returns the level to store and whether the model asked for one it may not set. */
+function clampTrust(input: string | undefined): { level: string; clamped: boolean } {
   const level = String(input ?? 'L3').toUpperCase()
-  if (!LEVELS.includes(level)) return 'L3'
+  if (!LEVELS.includes(level)) return { level: 'L3', clamped: false }
   // 模型自建的经验不许直接拿 L1/L2：那是可以不经人点头就行动的等级。
-  return level === 'L1' || level === 'L2' ? 'L3' : level
+  return level === 'L1' || level === 'L2' ? { level: 'L3', clamped: true } : { level, clamped: false }
 }
 
 const OUT = { type: 'object', properties: { content: { type: 'array', items: {} }, structuredContent: {} }, required: ['content'], additionalProperties: false }
@@ -149,16 +150,21 @@ export function registerExperienceTools(tools: { register(def: unknown): unknown
           return { content: [{ type: 'text', text: `已存在同 id 的经验：${id}，要改请用 experience_update` }], structuredContent: { ok: false, message: '已存在' } }
         }
         mkdirSync(dir, { recursive: true })
+        const trust = clampTrust(args.trust_level)
         writeFileSync(join(dir, `${id}.md`), render({
           id,
           trigger: String(args.trigger),
           condition: args.condition ? String(args.condition) : undefined,
           action: String(args.action),
-          trust: clampTrust(args.trust_level),
+          trust: trust.level,
           title: args.title ? String(args.title) : undefined,
           body: args.body ? String(args.body) : undefined,
         }), 'utf8')
-        return { content: [{ type: 'text', text: `已写入 ${id}.md` }], structuredContent: { ok: true, message: `已写入 ${id}.md`, id } }
+        // Say so instead of pretending: a clamped level that reports success leaves the model and the file disagreeing.
+        const message = trust.clamped
+          ? `已写入 ${id}.md，等级按 L3 落盘：L1/L2 是不经确认就行动的等级，模型不能自授，要降级只能由人在 ${id}.md 里改 trust_level。`
+          : `已写入 ${id}.md`
+        return { content: [{ type: 'text', text: message }], structuredContent: { ok: true, message, id, trust_level: trust.level } }
       },
     }) as () => void,
   )
@@ -192,9 +198,16 @@ export function registerExperienceTools(tools: { register(def: unknown): unknown
         for (const key of ['trigger', 'action', 'condition']) if (typeof args?.[key] === 'string') patch[key] = args[key]
         let out = text
         for (const [key, value] of Object.entries(patch)) out = out.replace(new RegExp(`^${key}:.*$`, 'm'), `${key}: ${value.replace(/\s*\n\s*/g, ' ')}`)
-        if (typeof args?.trust_level === 'string') out = out.replace(/^trust_level:.*$/m, `trust_level: ${clampTrust(args.trust_level)}`)
+        const trust = typeof args?.trust_level === 'string' ? clampTrust(args.trust_level) : undefined
+        if (trust) out = out.replace(/^trust_level:.*$/m, `trust_level: ${trust.level}`)
         writeFileSync(join(dir, `${id}.md`), out, 'utf8')
-        return { content: [{ type: 'text', text: `已更新 ${id}` }], structuredContent: { ok: true, message: `已更新 ${id}`, id } }
+        // A downgrade to L1/L2 is the model granting itself the right to act unasked; report that it did not happen.
+        if (trust?.clamped) {
+          const message = `等级没有改：L1/L2 是不经确认就行动的等级，模型不能自授，${id}.md 里仍是 L3。` +
+            `${Object.keys(patch).length ? '其他字段已更新。' : ''}要降级只能由人在这个文件里改 trust_level。`
+          return { content: [{ type: 'text', text: message }], structuredContent: { ok: false, message, id, trust_level: 'L3' } }
+        }
+        return { content: [{ type: 'text', text: `已更新 ${id}` }], structuredContent: { ok: true, message: `已更新 ${id}`, id, ...trust ? { trust_level: trust.level } : {} } }
       },
     }) as () => void,
   )
