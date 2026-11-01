@@ -112,7 +112,20 @@ export function registerExperienceTools(tools: { register(def: unknown): unknown
   disposers.push(
     tools.register({
       name: 'experience_create',
-      description: '新建一条经验。只在「这次判断有可复用的理由」时用：一条规则一个文件，别攒大杂烩。新建的等级最高 L3。',
+      description: [
+        '新建一条经验。只在「这次判断有可复用的理由」时用：一条规则一个文件，别攒大杂烩。新建的等级最高 L3。',
+        '',
+        '写之前先自检，四条缺一不可：',
+        '1. 可执行 —— action 必须写清「做什么 + 用什么做」，例如「用 report 交付一句结果」「移动到 ~/Documents/Work/」，',
+        '   不能只写意图（「弹一个轻量通知」「处理一下」「归档」这类都不可执行，执行者会自己发明实现）。',
+        '2. 有边界 —— 明确写出不许做什么（「不读无关目录」「不查系统数据库」「不自己造弹窗」）。',
+        '3. 条件可判定 —— condition 只支持 true、`字段 == 值`、`字段 in [..]`；写别的等于永不命中，而且不会报错。',
+        '4. 等级克制 —— 默认 L3（先问后做），这条规则跑顺很多次之后再考虑降级。',
+        '',
+        '反例：「弹一个轻量通知」—— 实测让执行者花了 48 秒、几十轮调用，还去翻系统通知数据库。',
+        '正例：「只做三件事：判断 → 移动到 ~/Documents/Work/ → 用 report 交付一句结果；不读无关目录」。',
+      ].join('
+'),
       parameters: {
         type: 'object',
         properties: {
@@ -154,7 +167,11 @@ export function registerExperienceTools(tools: { register(def: unknown): unknown
   disposers.push(
     tools.register({
       name: 'experience_update',
-      description: '改一条已有经验。只传要改的字段；等级可以上调到 L1，但下调到 L1 需要人来做，这里最高 L3。',
+      description: [
+        '改一条已有经验。只传要改的字段。等级最高 L3（降级与放宽要人来定）。',
+        '改 action 时同样要满足可执行与有边界：写清「做什么 + 用什么做」，并写明不许做什么。',
+      ].join('
+'),
       parameters: {
         type: 'object',
         properties: {
