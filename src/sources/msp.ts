@@ -142,11 +142,27 @@ export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<u
   }
 
   let seen = 0
+  // 兜底去重：本机信号源可能重复推送（实测过每秒一条的风暴）。
+  // 引擎不限流，所以同一个文件在窗口内只受理一次，否则每个重复事件都会烧一次模型调用。
+  const recent = new Map<string, number>()
+  const DEDUPE_WINDOW_MS = 60_000
+  let suppressed = 0
   for (const pattern of patterns) {
     node.on(pattern, sig => {
       // 先报告一次「回调真的进来了」，再判断能不能用——否则死在这里是黑盒。
       ctx.report('msp', { state: 'ready', detail: `hit ${pattern}: ${JSON.stringify(sig).slice(0, 140)}` })
       if (signal.aborted) return
+      const key = `${String(sig?.path)}|${String((sig?.payload as any)?.name ?? '')}|${String((sig?.payload as any)?.bytes ?? '')}`
+      const at = Date.now()
+      const last = recent.get(key) ?? 0
+      if (at - last < DEDUPE_WINDOW_MS) {
+        suppressed += 1
+        return
+      }
+      recent.set(key, at)
+      if (recent.size > 500) {
+        for (const [k, v] of recent) if (at - v > DEDUPE_WINDOW_MS) recent.delete(k)
+      }
       const trigger = mspTrigger({
         node: sig?.source ?? config.nodeName,
         path: sig?.path,
@@ -169,7 +185,7 @@ ${block}`
       seen += 1
       ctx.report('msp', {
         state: 'ready',
-        detail: `listening: ${patterns.join(', ')} · seen ${seen} · exp ${hits.length}/${loadExperiences().length}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''} · path ${String(trigger.meta.mspPath)}`,
+        detail: `listening: ${patterns.join(', ')} · seen ${seen} · exp ${hits.length}/${loadExperiences().length}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''} · path ${String(trigger.meta.mspPath)}${suppressed ? ` · 去重 ${suppressed}` : ''}`,
       })
       Promise.resolve(ctx.receive(trigger))
         .then(result => {
