@@ -124,8 +124,7 @@ export function registerExperienceTools(tools: { register(def: unknown): unknown
         '',
         '反例：「弹一个轻量通知」—— 实测让执行者花了 48 秒、几十轮调用，还去翻系统通知数据库。',
         '正例：「只做三件事：判断 → 移动到 ~/Documents/Work/ → 用 report 交付一句结果；不读无关目录」。',
-      ].join('
-'),
+      ].join('\n'),
       parameters: {
         type: 'object',
         properties: {
@@ -170,8 +169,7 @@ export function registerExperienceTools(tools: { register(def: unknown): unknown
       description: [
         '改一条已有经验。只传要改的字段。等级最高 L3（降级与放宽要人来定）。',
         '改 action 时同样要满足可执行与有边界：写清「做什么 + 用什么做」，并写明不许做什么。',
-      ].join('
-'),
+      ].join('\n'),
       parameters: {
         type: 'object',
         properties: {
