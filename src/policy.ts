@@ -66,8 +66,6 @@ const DEFAULT_RULES = [
   // installed bundle admits events and then ignores every one of them, which reads as "installed but does nothing".
   { id: 'msp-local', name: 'Local MSP events', enabled: true, instruction: 'Any event from the local MSP source is in scope for assessment. When the Trigger carries an experience block, follow it by its trust level. An event that no experience covers is not admissible.' },
 ]
-/** Local MSP signals arrive with no sender, so the admission table is the only thing that can let them in; default it open for this Source alone. */
-const DEFAULT_SOURCES = { msp: { allowed: [], admission: { ambient: { unlistedUnaddressed: 'inferred' } } } } as const
 /** An assessment rule; its instruction may also specify PR reviewers and whether to wait for their approval. */
 export const RuleSchema = z.object({ id: RuleIdSchema, name: z.string().trim().min(1).max(LIMITS.ruleName), enabled: z.boolean(),
   instruction: z.string().trim().min(1).max(LIMITS.ruleInstruction) }).strict()
@@ -81,6 +79,8 @@ export const AdmissionRowSchema: z.ZodType<AdmissionRow> = z.object({ listedUnad
 export const AdmissionTableSchema = z.record(z.string(), AdmissionRowSchema)
 export const SourcePolicySchema = z.object({ allowed: z.array(AllowedSchema).default([]), admission: AdmissionTableSchema.default({}) }).catchall(z.unknown())
 export type SourcePolicy = z.infer<typeof SourcePolicySchema>
+/** Local MSP signals arrive with no sender, so the admission table is the only thing that can let them in; default it open for this Source alone. Parsed, since a `default` value is used as-is and would otherwise lack the `allowed` list. */
+const DEFAULT_SOURCES: Record<string, SourcePolicy> = { msp: SourcePolicySchema.parse({ admission: { ambient: { unlistedUnaddressed: 'inferred' } } }) }
 export const PolicyConfigSchema = z.object({
   rules: z.array(RuleSchema).refine(rules => new Set(rules.map(rule => rule.id)).size === rules.length, 'Duplicate rule IDs').default(DEFAULT_RULES),
   sources: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), SourcePolicySchema).default(DEFAULT_SOURCES),
