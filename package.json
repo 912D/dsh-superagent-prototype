@@ -58,8 +58,7 @@
   "packageManager": "pnpm@11.7.0",
   "dependencies": {
     "proper-lockfile": "4.1.2",
-    "zod": "4.4.3",
-    "msp-ts": "file:vendor/msp-ts"
+    "zod": "4.4.3"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5-alpha.1",
@@ -113,6 +112,7 @@
     "@types/proper-lockfile": "4.1.4",
     "@types/react": "18.3.28",
     "jsdom": "29.1.1",
+    "msp-ts": "file:vendor/msp-ts",
     "react": "18.3.1",
     "tsdown": "0.22.14",
     "typescript": "6.0.3",
