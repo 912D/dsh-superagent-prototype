@@ -171,9 +171,13 @@ ${block}`
         state: 'ready',
         detail: `listening: ${patterns.join(', ')} · seen ${seen} · exp ${hits.length}/${loadExperiences().length}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''} · path ${String(trigger.meta.mspPath)}`,
       })
-      Promise.resolve(ctx.receive(trigger)).catch(error => {
-        ctx.report('msp', { state: 'error', detail: `receive failed: ${String(error).slice(0, 240)}` })
-      })
+      Promise.resolve(ctx.receive(trigger))
+        .then(result => {
+          ctx.report('msp', { state: 'ready', detail: `recv ${JSON.stringify(result).slice(0, 160)}` })
+        })
+        .catch(error => {
+          ctx.report('msp', { state: 'error', detail: `receive failed: ${String(error).slice(0, 240)}` })
+        })
     })
   }
 

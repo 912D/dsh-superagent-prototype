@@ -310,6 +310,32 @@ def start(args):
     raise RuntimeError('Startup health check timed out; inspect the log. Any running process was left intact.')
 
 
+def seed_policy(url=API_URL):
+    """Ensure the one rule this fork needs: local MSP events are admissible when an experience covers them."""
+    import json, urllib.request
+    def call(method, path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        request = urllib.request.Request(url + path, data=data, method=method,
+            headers={'x-orchestrator-request': '1', 'content-type': 'application/json'})
+        with urllib.request.urlopen(request, timeout=25) as response:
+            return json.load(response)
+    settings = call('GET', '/settings')
+    block = settings['blocks']['policy']
+    value = block['value']
+    if any(rule.get('id') == 'msp-local' for rule in value.get('rules', [])):
+        return
+    value.setdefault('rules', []).append({
+        'id': 'msp-local',
+        'name': 'Local MSP events',
+        'enabled': True,
+        'instruction': 'Any event from the local MSP source is in scope for assessment. ' 
+            'When the Trigger carries an experience block, follow it by its trust level. ' 
+            'An event that no experience covers is not admissible.',
+    })
+    call('PUT', '/settings/policy', {'value': value, 'revision': block.get('revision', 0)})
+    print('seeded policy rule msp-local')
+
+
 def init(args):
     """Create the profile, install this bundle into it, and write the required stateDir."""
     # Windows 上 which('dsh') 可能返回 .ps1 或 shell 脚本，subprocess 都执行不了；
@@ -340,8 +366,13 @@ def init(args):
         line = '\n- id: dsh-superagent\n  config:\n    stateDir: "'
         patch.write_text(text.rstrip() + line + state_dir + '"\n', encoding='utf-8')
         print('wrote stateDir: ' + state_dir)
-    print('starting dsh-superagent')
-    return start(args)
+    code = start(args)
+    if code == 0:
+        try:
+            seed_policy()
+        except Exception as error:
+            print('could not seed the msp-local rule: ' + str(error))
+    return code
 
 
 def main():
