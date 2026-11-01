@@ -310,7 +310,10 @@ def start(args):
     raise RuntimeError('Startup health check timed out; inspect the log. Any running process was left intact.')
 
 
-def seed_policy(url=API_URL):
+API_URL = os.environ.get('DSH_SUPERAGENT_API') or 'http://127.0.0.1:3080/orchestrator/api'
+
+def seed_policy(url=None):
+    url = url or API_URL
     """Ensure the one rule this fork needs: local MSP events are admissible when an experience covers them."""
     import json, urllib.request
     def call(method, path, body=None):
