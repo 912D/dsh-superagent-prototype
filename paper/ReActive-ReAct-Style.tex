@@ -4,6 +4,8 @@
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,fit,arrows.meta}
 \usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{enumitem}
@@ -19,7 +21,7 @@
 \maketitle
 
 \begin{abstract}
-ReAct interleaves reasoning traces with actions and lets a language model
+The name is read as \emph{Re} $+$ \emph{Act} $+$ \emph{ively}: the first two halves are ReAct's loop, and the third half is what makes the loop start from the environment instead of from an instruction. ReAct interleaves reasoning traces with actions and lets a language model
 gather evidence before committing to an answer. Its loop, however, starts
 from a task someone else has already posed: a question, an instruction, a
 benchmark item. A personal agent faces an earlier and harder problem---most
@@ -114,23 +116,33 @@ quantifying silence, trust-level ablation, and a real event storm
 
 \begin{figure}[t]
 \centering
-\small
-\fbox{\begin{minipage}{0.94\linewidth}
-\textbf{Sense} \; signals arrive from local nodes (push, no schema negotiation)\\
-$\downarrow$\\
-\textbf{Admit} \; score $=$ base $\times$ urgency $\times$ quiet $\rightarrow$ \{drop, record, digest, interrupt\}\\
-$\downarrow$\\
-\textbf{Recall} \; match the signal against the experience library; no match $\Rightarrow$ inadmissible\\
-$\downarrow$\\
-\textbf{Act} \; trust level L1--L4 decides silent act / act-and-notify / ask-first / report-only\\
-$\downarrow$\\
-\textbf{Receipt} \; done / waiting / held back, with the reason attached
-\end{minipage}}
-\caption{The \sys{} loop. ReAct's think--act cycle occupies the last two
-stages; the first two are what a continuously sensing agent needs and a
-task-driven benchmark never exercises.}
-\label{fig:loop}
+\begin{tikzpicture}[
+  node distance=6mm,
+  every node/.style={font=\small},
+  box/.style={draw, rounded corners=2pt, minimum height=9mm, minimum width=20mm, align=center},
+  sig/.style={box, fill=black!85, text=white, font=\small\bfseries},
+  hot/.style={box, fill=blue!55, text=white},
+  grp/.style={draw, rounded corners=3pt, inner sep=5mm, fill=blue!5}]
+
+\node[sig] (sig) {Signal /\event};
+\node[hot, right=8mm of sig] (recall) {Recall\experience};
+\node[hot, right=17mm of recall] (think) {Think};
+\node[hot, right=6mm of think] (act) {Act};
+\node[hot, right=6mm of act] (obs) {Observe};
+\node[grp, fit=(think)(act)(obs), label={[font=\scriptsize, blue!60!black]above:ReAct loop (unchanged)}] (loop) {};
+\node[hot, right=17mm of obs] (cons) {Consolidate\into experience};
+
+\draw[->, thick] (sig) -- (recall);
+\draw[->, thick] (recall) -- (think);
+\draw[->, thick] (think) -- (act);
+\draw[->, thick] (act) -- (obs);
+\draw[->, thick] (obs.north) .. controls +(0,7mm) and +(0,7mm) .. node[midway, above, font=\scriptsize]{repeat} (think.north);
+\draw[->, thick, dashed] (cons.north) -- ++(0,14mm) -| node[pos=0.25, above, font=\scriptsize]{write back} (recall.north);
+\end{tikzpicture}
+\caption{The \sys{} paradigm: \emph{Re} $+$ \emph{Act} $+$ \emph{ively}. ReAct supplies the first two halves---an inner think--act--observe loop; the third half is that the loop is entered by the world, not by an instruction. An experience is recalled before reasoning begins and is revised after acting, so the same situation is not reasoned about twice.}
+\label{fig:paradigm}
 \end{figure}
+
 
 \subsection{Active sensing}
 
@@ -154,9 +166,13 @@ reported late by more than 30 seconds, and the agent pays for the poll
 whether or not anything happened. Push inverts both: latency is bounded by
 the sensor, and an idle agent costs nothing.
 
+\paragraph{Relation to tool protocols.}
+A tool protocol such as MCP standardizes how an agent \emph{calls} a program; the sensing stage standardizes how a program \emph{notifies} the agent. The two are peers, not layers: one governs outbound actions, the other inbound observations. Screen understanding is a different problem---it reconstructs state from pixels, whereas sensing receives declared events.
+
 \subsection{Admission}
 
-Admission is the stage that decides whether a signal becomes a task. We
+The gate consults the experience layer first: in our implementation an event that no experience covers is rejected before any scoring, which is why admission is drawn after recall in Figure~
+ef{fig:loop}. Admission is the stage that decides whether a signal becomes a task. We
 score each signal by three factors:
 \begin{equation}
 s \;=\; \mathrm{base}(e)\;\times\;\mathrm{urgency}(e)\;\times\;\mathrm{quiet}(h),
@@ -209,6 +225,8 @@ tool calls. We therefore treat executability as a first-class property of an
 experience and enforce it in the tool description through which the agent
 writes experiences---including a negative example, because models follow
 concrete contrasts far better than abstract requirements.
+
+The experience layer is the least established part of \sys{}. We treat it as a hypothesis under test rather than as a result: memory and skills can be summarized into a rule offline, but whether such a rule transfers across contexts is not settled by our data.
 
 Experiences also supply the default-deny property. A signal that no
 experience covers is not admissible; the agent does not need a rule saying
