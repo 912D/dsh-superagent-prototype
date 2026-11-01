@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      msp-ts:
-        specifier: file:vendor/msp-ts
-        version: file:vendor/msp-ts
       proper-lockfile:
         specifier: 4.1.2
         version: 4.1.2
@@ -111,6 +108,9 @@ importers:
       jsdom:
         specifier: 29.1.1
         version: 29.1.1
+      msp-ts:
+        specifier: file:vendor/msp-ts
+        version: file:vendor/msp-ts
       react:
         specifier: 18.3.1
         version: 18.3.1
