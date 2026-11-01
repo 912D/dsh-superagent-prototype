@@ -98,7 +98,7 @@ the decision to do nothing, inspectable.
 Our contributions are:
 \begin{itemize}
 \item A formulation of the pre-task problem and a four-stage loop
-(Sense $\rightarrow$ Admit $\rightarrow$ Recall $\rightarrow$ Act) that
+(Sense $\rightarrow$ Recall $\rightarrow$ Admit $\rightarrow$ Act) that
 extends ReAct to continuously sensed environments (\S\ref{sec:method}).
 \item An admission design in which the unit of output is a verdict on a
 spectrum (drop / record / digest / interrupt) rather than a binary, and in
@@ -169,30 +169,6 @@ the sensor, and an idle agent costs nothing.
 \paragraph{Relation to tool protocols.}
 A tool protocol such as MCP standardizes how an agent \emph{calls} a program; the sensing stage standardizes how a program \emph{notifies} the agent. The two are peers, not layers: one governs outbound actions, the other inbound observations. Screen understanding is a different problem---it reconstructs state from pixels, whereas sensing receives declared events.
 
-\subsection{Admission}
-
-The gate consults the experience layer first: an event that no experience covers is rejected before any scoring. Admission is the stage that decides whether a signal becomes a task, so it is drawn after recall in Figure 1. We score each signal by three factors:
-\begin{equation}
-s \;=\; \mathrm{base}(e)\;\times\;\mathrm{urgency}(e)\;\times\;\mathrm{quiet}(h),
-\end{equation}
-where $\mathrm{base}$ reflects the event type's prior salience,
-$\mathrm{urgency}$ its time sensitivity, and $\mathrm{quiet}(h)$ a discount
-from recent interaction history $h$---an agent that has just spoken should be
-less willing to speak again.
-
-The score maps to one of four verdicts: \textsc{drop} (discard, count it),
-\textsc{record} (keep for the day's digest, do not act), \textsc{digest}
-(merge into a summary delivered later), and \textsc{interrupt} (wake the
-agent now). The four-way output is the point. A binary decision forces every
-borderline event into a costly branch; a spectrum lets the system say
-``this is real but not now'', which is what most real signals deserve.
-
-Two properties of our gate are worth stating. First, admission is where
-\emph{policy} lives, not the model: the model never sees a signal that the
-gate dropped, so a noisy sensor cannot inflate cost. Second, the gate is
-where the addressee problem appears---a verdict of ``interrupt'' presupposes
-somewhere to interrupt \emph{to}.
-
 \subsection{Experiences}
 
 Memory, skill and experience are routinely conflated, so it is worth stating the difference operationally (Table~\ref{tab:kinds}). Memory records what happened and carries neither an action nor a condition; a skill carries an action but no condition, so it answers ``how'' and never ``whether now''. An experience carries both, plus a rationale and an authority level, and is therefore the only one of the three to which admission and trust can attach. The relation is that of ingredients, cookery and recipe: a recipe is derived from the first two and is neither. Two tests separate them: remove the condition and an experience collapses into a bare command, while a skill survives; remove the action and an experience is no longer an experience, while a memory is unaffected. A third test is decisive for our design: memories and skills need no permission, an experience does.
@@ -249,6 +225,30 @@ Experiences also supply the default-deny property. A signal that no
 experience covers is not admissible; the agent does not need a rule saying
 ``do not handle weather''. Silence is the absence of a rule, not the
 presence of a suppression.
+
+\subsection{Admission}
+
+The gate consults the experience layer first: an event that no experience covers is rejected before any scoring. Admission is the stage that decides whether a signal becomes a task, so it is drawn after recall in Figure 1. We score each signal by three factors:
+\begin{equation}
+s \;=\; \mathrm{base}(e)\;\times\;\mathrm{urgency}(e)\;\times\;\mathrm{quiet}(h),
+\end{equation}
+where $\mathrm{base}$ reflects the event type's prior salience,
+$\mathrm{urgency}$ its time sensitivity, and $\mathrm{quiet}(h)$ a discount
+from recent interaction history $h$---an agent that has just spoken should be
+less willing to speak again.
+
+The score maps to one of four verdicts: \textsc{drop} (discard, count it),
+\textsc{record} (keep for the day's digest, do not act), \textsc{digest}
+(merge into a summary delivered later), and \textsc{interrupt} (wake the
+agent now). The four-way output is the point. A binary decision forces every
+borderline event into a costly branch; a spectrum lets the system say
+``this is real but not now'', which is what most real signals deserve.
+
+Two properties of our gate are worth stating. First, admission is where
+\emph{policy} lives, not the model: the model never sees a signal that the
+gate dropped, so a noisy sensor cannot inflate cost. Second, the gate is
+where the addressee problem appears---a verdict of ``interrupt'' presupposes
+somewhere to interrupt \emph{to}.
 
 \subsection{Trust and the addressee gap}
 
