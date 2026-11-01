@@ -7,7 +7,7 @@
  *
  * 只监控目录的**直接子项**，不进子目录（不递归）。
  */
-import { MSPNode } from 'msp-ts'
+import { MSPNode } from './msp/index.js'
 import { readdirSync, statSync, watch } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
