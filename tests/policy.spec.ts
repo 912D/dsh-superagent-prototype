@@ -484,3 +484,19 @@ describe('bots and events without a sender', () => {
       ['ci', { listedUnaddressed: false, unlistedAddressed: false, unlistedUnaddressed: false }]])
   })
 })
+
+describe('fresh installation', () => {
+  it('is usable with no configuration: local MSP events are admitted, an experience rule exists, and accept mode acts', () => {
+    const settings = SettingsSchema.parse({})
+    expect(settings.eval.mode).toBe('auto')
+    expect(settings.policy.rules.map(rule => rule.id)).toContain('msp-local')
+    expect(settings.policy.sources.msp?.admission.ambient).toEqual({ unlistedUnaddressed: 'inferred' })
+    // The msp kind's scope(): in scope, observed, admission row `ambient`.
+    const scope = { scope: () => ({ listened: true, observed: true, row: 'ambient' }) }
+    const policy = settingsPolicy(settings, scope as never)
+    const trigger = { source: 'msp', actor: { source: 'msp', id: '' }, human: false, meta: {},
+      text: 'weather.changed\n{"delta":-6}' } as Trigger
+    expect(policy.gate(trigger, { subscriptions: [], context: [] } as unknown as Thread, []))
+      .toMatchObject({ admissible: true, strength: 'inferred' })
+  })
+})
