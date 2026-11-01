@@ -1,5 +1,9 @@
 # dsh-superagent-reactive
 
+[![license](https://img.shields.io/github/license/hxh230802/dsh-superagent-prototype)](LICENSE) [![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](INSTALL.md) [![contributors](https://img.shields.io/github/contributors/hxh230802/dsh-superagent-prototype)](#贡献者)
+<br/>
+[![node](https://img.shields.io/badge/node-%5E22.19%20%7C%7C%20%3E%3D24-339933?logo=nodedotjs&logoColor=white)](package.json) [![pnpm](https://img.shields.io/badge/pnpm-11.7.0-F69220?logo=pnpm&logoColor=white)](package.json) [![dsh](https://img.shields.io/badge/dsh-%5E0.2.1--alpha.2-5B4B8A)](package.json) [![tests](https://img.shields.io/badge/tests-1201%20cases-6E9F18?logo=vitest&logoColor=white)](tests)
+
 > **ReActive** 是 [DeepSeek 的 dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype) 的一个 fork。
 > 它保留原型的全部多任务调度能力，补上了原型里缺的两件事：**本机感知**（MSP）与**经验**（Experience）。
 
@@ -151,6 +155,21 @@ enabled: true
 - 经验 → 行为改变：**未验证**——Eval 目前对这批信号不开单，瓶颈在决策阈值，不在经验供给
 
 最后一条是诚实的：这条链的末端还没接上。
+
+测试（`pnpm test`，Windows 实测）：1201 个用例，1152 通过 / 42 失败 / 7 跳过。失败集中在 `service-script`、`sources`、`environment`、`deployment`（POSIX 语义：文件权限位、PATH 改写、shell shim）和 `docs`（007 文档的模块表、测试表没列全）。Linux 上未实测——徽章里的 `1201 cases` 是用例数，不是通过率。
+
+## 贡献者
+
+<a href="https://github.com/hxh230802/dsh-superagent-prototype/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=hxh230802/dsh-superagent-prototype" alt="贡献者" />
+</a>
+
+图由 [contrib.rocks](https://contrib.rocks) 自动生成，会自己更新。谁做过什么，图里写不下：
+
+| 谁 | 做了什么 |
+|---|---|
+| [@hxh230802](https://github.com/hxh230802) | 这个 fork 的全部主体：MSP Source、经验库与 CRUD 工具、经验注入评估上下文、跨平台服务脚本、这份 README |
+| [@guguthecoder](https://github.com/guguthecoder) | [#1](https://github.com/hxh230802/dsh-superagent-prototype/pull/1)：修好类型门（两个文件 14 处）；让主 Session 只保留 profile 真有的工具，Windows 上不再建不出 Session |
 
 ## 许可证
 
