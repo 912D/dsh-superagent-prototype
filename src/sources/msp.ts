@@ -182,6 +182,9 @@ export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<u
       const block = experienceBlock(hits)
       if (block) trigger.text = `${trigger.text}
 ${block}`
+      // 把命中写进 meta：否则「这条经验生效了吗」在决策记录里查不到，也就无法做消融。
+      trigger.meta.experience = hits.map(h => h.id)
+      trigger.meta.experienceLoaded = loadExperiences().length
       seen += 1
       ctx.report('msp', {
         state: 'ready',
