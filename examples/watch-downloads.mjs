@@ -49,6 +49,7 @@ setInterval(() => {
 
     const before = seen.get(path)
     if (before === -1) continue                                    // 已经发过
+    if (before === -2) continue                                    // 排队中，等 settle 回调
     if (before === undefined) { seen.set(path, size); continue }   // 第一次见到，等大小稳定
     if (before !== size) { seen.set(path, size); continue }        // 还在长，继续等
 
