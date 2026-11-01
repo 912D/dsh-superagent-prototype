@@ -124,13 +124,13 @@ quantifying silence, trust-level ablation, and a real event storm
   hot/.style={box, fill=blue!55, text=white},
   grp/.style={draw, rounded corners=3pt, inner sep=5mm, fill=blue!5}]
 
-\node[sig] (sig) {Signal /\event};
-\node[hot, right=8mm of sig] (recall) {Recall\experience};
+\node[sig] (sig) {Signal};
+\node[hot, right=8mm of sig] (recall) {Recall exp.};
 \node[hot, right=17mm of recall] (think) {Think};
 \node[hot, right=6mm of think] (act) {Act};
 \node[hot, right=6mm of act] (obs) {Observe};
 \node[grp, fit=(think)(act)(obs), label={[font=\scriptsize, blue!60!black]above:ReAct loop (unchanged)}] (loop) {};
-\node[hot, right=17mm of obs] (cons) {Consolidate\into experience};
+\node[hot, right=17mm of obs] (cons) {Consolidate};
 
 \draw[->, thick] (sig) -- (recall);
 \draw[->, thick] (recall) -- (think);
@@ -196,6 +196,25 @@ where the addressee problem appears---a verdict of ``interrupt'' presupposes
 somewhere to interrupt \emph{to}.
 
 \subsection{Experiences}
+
+Memory, skill and experience are routinely conflated, so it is worth stating the difference operationally (Table~\ref{tab:kinds}). Memory records what happened and carries neither an action nor a condition; a skill carries an action but no condition, so it answers ``how'' and never ``whether now''. An experience carries both, plus a rationale and an authority level, and is therefore the only one of the three to which admission and trust can attach. The relation is that of ingredients, cookery and recipe: a recipe is derived from the first two and is neither. Two tests separate them: remove the condition and an experience collapses into a bare command, while a skill survives; remove the action and an experience is no longer an experience, while a memory is unaffected. A third test is decisive for our design: memories and skills need no permission, an experience does.
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{@{}p{0.13\linewidth}p{0.26\linewidth}p{0.35\linewidth}p{0.18\linewidth}@{}}
+\toprule
+kind & what it is & example & what it must have \\
+\midrule
+Memory & what happened & ``last Wednesday I downloaded a PDF called Invoice'' & no action, no condition \\
+Skill & what one can do & ``I can move a file with PowerShell'' & an action, no condition \\
+Experience & what to do in which situation & ``if takeout is over 40 minutes late, call and ask'' & \textbf{condition + action + rationale + authority} \\
+\bottomrule
+\end{tabular}
+\caption{Memory records, skills execute, experiences \emph{decide}. Only an
+experience answers ``when'' and ``with what authority'' at once, which is why
+the trust levels attach to it and to nothing else.}
+\label{tab:kinds}
+\end{table}
 
 An experience is a conditional rule that a person teaches once and the agent
 applies thereafter:
