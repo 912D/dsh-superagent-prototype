@@ -62,7 +62,12 @@ export function assessmentOutcome(assessment: Assessment, settings: Pick<Setting
 const DEFAULT_RULES = [
   { id: 'copy', name: 'Copy fixes', enabled: true, instruction: 'Explicit requests to correct a typo, wording, punctuation or existing translation. Preserve product promises and business meaning.' },
   { id: 'visual', name: 'Visual fixes', enabled: true, instruction: 'Explicit implementation requests for local spacing, alignment, overflow or styling, with a specified target or an objectively established existing standard/correct state to restore. Locating an element or calling it inconsistent, unattractive or hard to understand does not establish a target. Do not invent visual style, information hierarchy, rendering or interaction decisions. No redesign, new interaction or behavior. A known spacing defect does not authorize adjacent undefined restyling; assess only a clearly separable authorized scope. If direction or scope is unsettled, observe only: no acknowledgement, worker or unsolicited question.' },
+  // The reason a local MSP signal may be acted on at all: an experience says what to do with it. Without this rule an
+  // installed bundle admits events and then ignores every one of them, which reads as "installed but does nothing".
+  { id: 'msp-local', name: 'Local MSP events', enabled: true, instruction: 'Any event from the local MSP source is in scope for assessment. When the Trigger carries an experience block, follow it by its trust level. An event that no experience covers is not admissible.' },
 ]
+/** Local MSP signals arrive with no sender, so the admission table is the only thing that can let them in; default it open for this Source alone. */
+const DEFAULT_SOURCES = { msp: { allowed: [], admission: { ambient: { unlistedUnaddressed: 'inferred' } } } } as const
 /** An assessment rule; its instruction may also specify PR reviewers and whether to wait for their approval. */
 export const RuleSchema = z.object({ id: RuleIdSchema, name: z.string().trim().min(1).max(LIMITS.ruleName), enabled: z.boolean(),
   instruction: z.string().trim().min(1).max(LIMITS.ruleInstruction) }).strict()
@@ -78,10 +83,12 @@ export const SourcePolicySchema = z.object({ allowed: z.array(AllowedSchema).def
 export type SourcePolicy = z.infer<typeof SourcePolicySchema>
 export const PolicyConfigSchema = z.object({
   rules: z.array(RuleSchema).refine(rules => new Set(rules.map(rule => rule.id)).size === rules.length, 'Duplicate rule IDs').default(DEFAULT_RULES),
-  sources: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), SourcePolicySchema).default({}),
+  sources: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), SourcePolicySchema).default(DEFAULT_SOURCES),
 }).strict()
 export const EvalConfigSchema = z.object({
-  mode: z.enum(['off', 'observe', 'auto']).default('observe'),
+  // A fresh install acts on what its experiences authorize; switching to `observe` costs one setting and is how a new
+  // operator tunes noise down, while starting in observe makes every installation look broken (it accepts nothing).
+  mode: z.enum(['off', 'observe', 'auto']).default('auto'),
   timeoutSeconds: z.number().int().min(LIMITS.evalTimeoutSeconds.min).max(LIMITS.evalTimeoutSeconds.max).default(120),
   model: RoleModelSchema.nullable().default(null),
 }).strict()
