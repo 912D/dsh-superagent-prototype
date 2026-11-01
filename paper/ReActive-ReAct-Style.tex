@@ -228,27 +228,21 @@ presence of a suppression.
 
 \subsection{Admission}
 
-The gate consults the experience layer first: an event that no experience covers is rejected before any scoring. Admission is the stage that decides whether a signal becomes a task, so it is drawn after recall in Figure 1. We score each signal by three factors:
+Admission decides whether a signal becomes a task, and it runs in two tiers. The split is not between ``surface'' and ``meaning'' but between what can be decided deterministically and what requires understanding: every judgement that can be made without a model call is pushed into the first tier, because each event it rejects is a model call saved.
+
+\subsubsection{Structural admission}
+
+The first tier reads only the envelope. Is the source in the listened or observed scope? Is the sender permitted, or is the event senderless and therefore subject to the cell that governs unattributed signals? Is the event a duplicate within the suppression window? Does any experience cover this path at all? The last question looks semantic, and we deliberately moved it here: matching a file path against a condition such as \texttt{file.extension in ["pdf","docx"]} is a deterministic comparison, so an event that no experience covers is rejected before anything is scored. The tier is default-deny, and an event it rejects never reaches the model at all. In our deployment one hundred background signals---heartbeat ticks, clipboard changes, and file events outside any experienced class---produced zero model calls and zero tickets.
+
+\subsubsection{Semantic admission}
+
+Only survivors are scored, by three factors:
 \begin{equation}
 s \;=\; \mathrm{base}(e)\;\times\;\mathrm{urgency}(e)\;\times\;\mathrm{quiet}(h),
 \end{equation}
-where $\mathrm{base}$ reflects the event type's prior salience,
-$\mathrm{urgency}$ its time sensitivity, and $\mathrm{quiet}(h)$ a discount
-from recent interaction history $h$---an agent that has just spoken should be
-less willing to speak again.
+where base reflects the event type's prior salience, urgency its time sensitivity, and $\mathrm{quiet}(h)$ a discount from recent interaction history $h$---an agent that has just spoken should be less willing to speak again. The score maps to one of four verdicts: \textsc{drop} (discard, count it), \textsc{record} (keep for the day's digest, do not act), \textsc{digest} (merge into a summary delivered later), and \textsc{interrupt} (wake the agent now). The four-way output is the point. A binary decision forces every borderline event into a costly branch, whereas a spectrum lets the system say ``this is real but not now'', which is what most real signals deserve. Because the structural tier already removed the bulk of the stream, most of the \textsc{drop} verdicts are issued before this tier is reached; what arrives here is genuinely candidacy.
 
-The score maps to one of four verdicts: \textsc{drop} (discard, count it),
-\textsc{record} (keep for the day's digest, do not act), \textsc{digest}
-(merge into a summary delivered later), and \textsc{interrupt} (wake the
-agent now). The four-way output is the point. A binary decision forces every
-borderline event into a costly branch; a spectrum lets the system say
-``this is real but not now'', which is what most real signals deserve.
-
-Two properties of our gate are worth stating. First, admission is where
-\emph{policy} lives, not the model: the model never sees a signal that the
-gate dropped, so a noisy sensor cannot inflate cost. Second, the gate is
-where the addressee problem appears---a verdict of ``interrupt'' presupposes
-somewhere to interrupt \emph{to}.
+Two properties are worth stating. First, admission is where \emph{policy} lives rather than the model, so a noisy sensor cannot inflate cost. Second, a verdict of \textsc{interrupt} presupposes somewhere to interrupt \emph{to}---which is where the addressee problem appears.
 
 \subsection{Trust and the addressee gap}
 
