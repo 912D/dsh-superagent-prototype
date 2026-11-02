@@ -1,10 +1,9 @@
-import { F as Thread, I as ThreadFact, R as ThreadRef, S as ChannelRef, U as Trigger, h as SourceScope, l as OutboundMessage, lt as Deployment, m as ScopeResult, t as ReceiveResult, v as AdmissionCell, z as Ticket } from "./intake-BntR4bhz.js";
+import { F as Thread, I as ThreadFact, R as ThreadRef, S as ChannelRef, U as Trigger, h as SourceScope, l as OutboundMessage, lt as Deployment, m as ScopeResult, t as ReceiveResult, v as AdmissionCell, z as Ticket } from "./intake-DlEkHhs0.js";
 import { Context } from "@deepseek-ai/cordis";
 import { z } from "zod";
 import { DatabaseSync } from "node:sqlite";
 import { MessageId } from "@deepseek-ai/dsh-llm";
 import { Agent } from "@deepseek-ai/dsh-agent";
-//#region src/infra/commands.d.ts
 interface Tally {
   skipped: number;
 }
@@ -45,16 +44,12 @@ declare class Commands {
   /** Runs `git` on PATH using the agent's isolated git environment and credential helper. */
   git(args: string[], cwd: string): Promise<string>;
 }
-//#endregion
-//#region src/admission.d.ts
 declare const ADMISSION_OPTIONS: {
   readonly listedUnaddressed: readonly ["inferred", "ignore"];
   readonly unlistedAddressed: readonly ["explicit", "inferred", "ignore"];
   readonly unlistedUnaddressed: readonly ["inferred", "ignore"];
 };
 type AdmissionRow = { [C in AdmissionCell]?: typeof ADMISSION_OPTIONS[C][number]; };
-//#endregion
-//#region src/infra/health.d.ts
 interface HealthEntry {
   get(): Health | undefined;
   set(health: Health): void;
@@ -71,8 +66,6 @@ declare class HealthBoard {
   claim(name: string, initial?: Health): HealthEntry;
   get all(): Readonly<Record<string, Health>>;
 }
-//#endregion
-//#region src/policy.d.ts
 declare const SettingsSchema: z.ZodObject<{
   paused: z.ZodDefault<z.ZodBoolean>;
   sources: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodObject<{
@@ -120,8 +113,6 @@ declare const SettingsSchema: z.ZodObject<{
   }, z.core.$strict>>;
 }, z.core.$strict>;
 type Settings = z.infer<typeof SettingsSchema>;
-//#endregion
-//#region src/sources/registry.d.ts
 /**
  * Manages registered SourceKind plugins, validates their instance and policy configurations, and implements SourceScope for the Engine.
  * Claims each registered kind's health entries on HealthBoard and mediates access to source channels, links, environment variables, and thread context readers for Runtime, Settings, Outbox, and MasterAssessor.
@@ -497,8 +488,6 @@ declare class SourceRegistry implements SourceScope {
   /** Falls back to schema defaults and disables the instance when stored configuration fails validation. */
   private resolve;
 }
-//#endregion
-//#region src/setup.d.ts
 type SetupPlace = 'deployment' | 'github' | 'feishu';
 declare const SETUP_PROBLEMS: {
   readonly foreignFile: readonly ["deployment", "{file} was not written by dsh-superagent; move it, or choose another state directory."];
@@ -525,16 +514,12 @@ interface SetupProblem {
   values: Record<string, string>;
   detail: string;
 }
-//#endregion
-//#region src/app/sessions.d.ts
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /** DSH's agent preset registry selected `agentPreset` for a Session. */
     'agent-preset/selected'(sessionId: string, agentPreset: string): void;
   }
 }
-//#endregion
-//#region src/sources/github-pull.d.ts
 declare const PullSchema: z.ZodObject<{
   title: z.ZodOptional<z.ZodString>;
   state: z.ZodString;
@@ -568,8 +553,6 @@ declare const PullSchema: z.ZodObject<{
 type Pull = z.infer<typeof PullSchema> & {
   number: number;
 };
-//#endregion
-//#region src/sources/github-trigger.d.ts
 /**
  * A GitHub comment or review; a review carries `state` and `commit_id`, and an inline review comment carries its file,
  * line, diff hunk, and `in_reply_to_id` (the root comment ID of its review thread).
@@ -610,8 +593,6 @@ interface PullRef {
 }
 /** Builds a trigger for a comment or review; text is empty for a bodyless comment or a `COMMENTED` review without a body. */
 declare function commentTrigger(comment: GithubComment, ref: PullRef, kind: 'conversation' | 'inline' | 'review', agent: string): Trigger;
-//#endregion
-//#region src/sources/github.d.ts
 declare const GithubConfigSchema: z.ZodObject<{
   repository: z.ZodDefault<z.ZodString>;
   cli: z.ZodDefault<z.ZodString>;
@@ -657,8 +638,6 @@ declare function pollRound(ctx: SourceContext, signal?: AbortSignal): Promise<nu
 declare function pollTicketPulls(ctx: SourceContext, signal?: AbortSignal, round?: Round): Promise<void>;
 /** Polls subscribed Issue and PR Threads not already read in this round; a deleted (410) Issue is still polled within the horizon (costing one read) and does not fail the round. */
 declare function pollThreads(ctx: SourceContext, signal?: AbortSignal, round?: Round): Promise<void>;
-//#endregion
-//#region src/kv.d.ts
 /** Key of a KV record whose value has type `V`; a plain string represents an untyped key. */
 type Key<V> = string & {
   readonly __value?: V;
@@ -667,8 +646,6 @@ type Key<V> = string & {
 type Family<V, A extends unknown[]> = ((...name: A) => Key<V>) & {
   readonly prefix: string;
 };
-//#endregion
-//#region src/sources/host.d.ts
 /** Fixed English health templates (`{name}` placeholders); the panel localizes each `code` in the interface language. */
 declare const HEALTH_TEXT: {
   readonly setupPending: "Waiting for the deployment check";
@@ -744,8 +721,6 @@ interface SourceContext {
   /** Reports the state of one of this kind's declared health entries; throws for undeclared entry names. */
   report(entry: string, health: Health): void;
 }
-//#endregion
-//#region src/sources/kind.d.ts
 interface Localized {
   zh: string;
   en: string;
@@ -954,5 +929,4 @@ interface SourceInstance<C extends Record<string, unknown> = Record<string, unkn
   enabled: boolean;
   config: C;
 }
-//#endregion
 export { Tally as _, Retry as a, inject as c, pollRound as d, pollThreads as f, SourceRegistry as g, commentTrigger as h, GithubConfig as i, name as l, GithubComment as m, SourceKind as n, apply as o, pollTicketPulls as p, SourceContext as r, githubKind as s, Localized as t, pollFailure as u };

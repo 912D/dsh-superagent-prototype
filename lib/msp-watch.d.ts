@@ -1,8 +1,7 @@
-import { U as Trigger } from "./intake-BntR4bhz.js";
-import { n as SourceKind, r as SourceContext, t as Localized } from "./kind-CmU2VAka.js";
+import { U as Trigger } from "./intake-DlEkHhs0.js";
+import { n as SourceKind, r as SourceContext, t as Localized } from "./kind-6_PQdJ3m.js";
 import { Context } from "@deepseek-ai/cordis";
 import { z } from "zod";
-//#region src/sources/msp.d.ts
 declare const SOURCE = "msp";
 declare const MspConfigSchema: z.ZodObject<{
   enabled: z.ZodDefault<z.ZodBoolean>;
@@ -30,5 +29,4 @@ declare function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<unknow
 declare const name = "dsh-superagent-msp";
 declare const inject: string[];
 declare function apply(ctx: Context): void;
-//#endregion
 export { type Localized, MspConfig, MspConfigSchema, SOURCE, apply, inject, mspKind, mspTrigger, mspTriggerId, name, runMsp, topicOf };

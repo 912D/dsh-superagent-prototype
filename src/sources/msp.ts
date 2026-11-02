@@ -24,8 +24,10 @@ import { z } from 'zod'
 import type { Trigger } from '../core/index.ts'
 import { health, sourceContext, type SourceContext } from './host.ts'
 import type { Localized, SourceKind } from './kind.ts'
-import { experienceBlock, loadExperiences, matchExperiences } from './experiences.ts'
+import { matchTacit, signalContext } from './tacit.ts'
 import { registerExperienceTools } from './experience-tools.ts'
+import { registerTacitTools } from './tacit-tools.ts'
+import { registerMspActTools, mspMesh, setMspMesh, type MspMesh } from './msp-act.ts'
 
 export const SOURCE = 'msp'
 
@@ -122,19 +124,27 @@ const available = (ctx: SourceContext): MspConfig | undefined => {
 /** 上一次启动的节点。插件会重载，旧节点不停就会占着租约和端口，新节点抢不到连接。 */
 let currentNode: { stop(): void } | null = null
 
+/** 本补丁用到的节点形状：听 + 说 + 看得见邻居。声明窄一点，vendor 换实现也不用改这里。 */
+type MspNode = MspMesh & {
+  on(p: string, cb: (sig: any) => void): unknown
+  start(): Promise<unknown>
+  stop(): void
+}
+
 export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<unknown> {
   const config = available(ctx)
   if (!config) return
   if (currentNode) {
     try { currentNode.stop() } catch { /* 已经没了 */ }
     currentNode = null
+    setMspMesh(null)
   }
   const globs = (config.paths ?? []).map(entry => entry?.path).filter(Boolean)
   const patterns = globs.length > 0 ? globs : ['**']
 
-  let node: { on(p: string, cb: (sig: any) => void): unknown; start(): Promise<unknown>; stop(): void }
+  let node: MspNode
   try {
-    const mod = (await import('msp-ts')) as { MSPNode: new (id: string, opts?: Record<string, unknown>) => any }
+    const mod = (await import('msp-ts')) as { MSPNode: new (id: string, opts?: Record<string, unknown>) => MspNode }
     node = new mod.MSPNode(config.nodeName, { connectPolicy: 'eager' })
   } catch (error) {
     ctx.report('msp', { state: 'error', detail: `msp-ts unavailable: ${String(error).slice(0, 200)}` })
@@ -170,25 +180,16 @@ export async function runMsp(ctx: SourceContext, signal: AbortSignal): Promise<u
         payload: sig?.payload,
       }, config)
       if (!trigger) return
-      const payload = (trigger.meta.mspPayload ?? {}) as Record<string, unknown>
-      const named = String(payload.name ?? payload.path ?? '')
-      const extension = named.includes('.') ? named.split('.').pop()!.toLowerCase() : ''
-      const hits = matchExperiences(trigger.meta.mspPath as string, {
-        ...trigger.meta,
-        payload,
-        file: { name: named, extension },
-        signal: { path: trigger.meta.mspPath },
-      })
-      const block = experienceBlock(hits)
-      if (block) trigger.text = `${trigger.text}
-${block}`
-      // 把命中写进 meta：否则「这条经验生效了吗」在决策记录里查不到，也就无法做消融。
-      trigger.meta.experience = hits.map(h => h.id)
-      trigger.meta.experienceLoaded = loadExperiences().length
+      // 注入已经下沉到 `app/passes.ts` 的唯一入口（`enrichTrigger`）——那里才是所有来源的必经之路，
+      // 所以在 MSP 源里再注入一次只会重复。这里只算一遍，用于健康上报：面板必须能看见
+      // 「这条信号命中了几条记忆/经验/技能」，否则「经验到底生效没有」永远是个黑盒。
+      const path = String(trigger.meta.mspPath ?? '')
+      const hits = matchTacit(path, { context: signalContext(trigger, path) })
+      const count = (kind: string): number => hits.filter(hit => hit.kind === kind).length
       seen += 1
       ctx.report('msp', {
         state: 'ready',
-        detail: `listening: ${patterns.join(', ')} · seen ${seen} · exp ${hits.length}/${loadExperiences().length}${hits.length ? ` · 经验 ${hits.map(h => h.id).join(',')}` : ''} · path ${String(trigger.meta.mspPath)}${suppressed ? ` · 去重 ${suppressed}` : ''}`,
+        detail: `listening: ${patterns.join(', ')} · seen ${seen} · tacit M${count('mem')}/E${count('exp')}/S${count('skill')}${hits.length ? ` · ${hits.map(hit => hit.id).join(',')}` : ''} · path ${path}${suppressed ? ` · 去重 ${suppressed}` : ''}`,
       })
       Promise.resolve(ctx.receive(trigger))
         .then(result => {
@@ -207,8 +208,15 @@ ${block}`
     return
   }
   currentNode = node
+  // 补丁一：把活着的节点交给工具层。`msp_nodes` 靠它列邻居，`msp_publish` / `msp_call`
+  // 靠它往网格里说话——「一切皆节点，一切皆信号」在这里落地，不在协议里落地。
+  setMspMesh(node)
   ctx.report('msp', { state: 'ready', detail: `listening: ${patterns.join(', ')}` })
-  signal.addEventListener('abort', () => { try { node.stop() } catch { /* already gone */ } }, { once: true })
+  signal.addEventListener('abort', () => {
+    try { node.stop() } catch { /* already gone */ }
+    // 只清掉自己：插件重载时新节点可能已经挂上了，别把新的抹了。
+    if (mspMesh() === node) setMspMesh(null)
+  }, { once: true })
   return undefined
 }
 
@@ -217,14 +225,21 @@ export const inject = ['orchestrator']
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.orchestrator.sources.register(mspKind), 'msp: source kind')
 
-  // 经验的 CRUD：模型能自己读、写、改、停用——否则经验库只能靠人喂，永远长不大。
+  // 两组工具，分别对应截图上那两块：
+  //   经验层（补丁二）：记忆/经验/技能的 CRUD —— 模型能自己写，库才不会只靠人喂；
+  //   接入（补丁一）：看得见节点、发得出信号、调得动工具 —— 接新设备不再需要写适配。
   ctx.inject(['tools'], (tctx: Context) => {
-    const disposers = registerExperienceTools((tctx as unknown as { tools: { register(def: unknown): unknown } }).tools)
+    const tools = (tctx as unknown as { tools: { register(def: unknown): unknown } }).tools
+    const disposers = [
+      ...registerExperienceTools(tools),
+      ...registerTacitTools(tools),
+      ...registerMspActTools(tools),
+    ]
     tctx.effect(() => () => {
       for (const dispose of disposers) {
         try { (dispose as () => void)() } catch { /* 已摘除 */ }
       }
-    }, 'msp: experience tools')
+    }, 'msp: tacit + act tools')
   })
   ctx.effect(() => {
     const controller = new AbortController()

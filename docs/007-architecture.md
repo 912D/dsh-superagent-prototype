@@ -371,6 +371,9 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/sources/msp.ts` | The MSP kind and plugin entry, exported as `./msp-watch`: local node signals pushed as newline-delimited JSON by `python/msp_bridge.py`, mapped to senderless Triggers under the `ambient` admission row. No polling |
 | `src/sources/experiences.ts` | Experience files: frontmatter parsing, `trigger` and `condition` matching, and the experience block a matched signal carries into the assessment or worker prompt |
 | `src/sources/experience-tools.ts` | The five model-facing experience tools — list, read, create, update, disable — writing `<experienceDir>/<id>.md` under a slug-only id |
+| `src/sources/tacit.ts` | The experience layer proper: Mem + Exp + SKILL share one frontmatter parser, one path and condition matcher, and one injection point. `enrichTrigger` appends the matched block to `trigger.text` and records the matched ids in `meta.tacit`; an unmatched signal contributes no characters at all |
+| `src/sources/tacit-tools.ts` | The model-facing CRUD for all three stores (`tacit_list/read/create/disable`), writing `<tacitDir>/<memories\|experiences\|skills>/<id>.md` under a slug-only id, soft-deleting, and clamping model-created entries to L3 |
+| `src/sources/msp-act.ts` | Patch one, reach: `msp_nodes` lists reachable peers and what they declare, `msp_publish` emits a signal on any path, and `msp_call` invokes a peer's declared tool. Every capability is a node and every action is a signal, so a new device needs no adapter |
 | `src/sources/feishu-trigger.ts` | Feishu messages as Triggers, by one rule for live events, history pages and topic pages |
 | `src/sources/feishu-loops.ts` | The Feishu loops: the event consumer, history recovery, chat names and polling of subscribed topics |
 | `src/sources/feishu-channel.ts` | The Feishu Channel: topic replies, `sent` or `gone` |

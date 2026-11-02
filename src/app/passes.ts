@@ -1,6 +1,7 @@
 /** Coordinates periodic and on-demand orchestration passes that drive due effects and Engine evaluations. */
 import type { Engine, ReceiveResult, Trigger } from '../core/index.ts'
 import type { HealthEntry } from '../infra/health.ts'
+import { enrichTrigger } from '../sources/tacit.ts'
 import type { Effects } from './effects.ts'
 
 export interface PassesHost {
@@ -33,7 +34,10 @@ export class Passes {
   }
   receive(trigger: Trigger): ReceiveResult {
     if (this.host.closing()) throw new Error('Orchestrator is stopping')
-    const result = this.host.engine.receive(trigger)
+    // 经验层在这里注入，而不是在各个 Source 里各写一遍：这是**所有**来源进 Engine 的唯一入口，
+    // 所以 GitHub、飞书、MSP 以及以后新加的来源，都自动拿到「命中才注入」的记忆/经验/技能。
+    // 上一版把注入写在 msp.ts 内，等于只有本机信号能用经验——这才是「经验 → 行为改变 未验证」的真因。
+    const result = this.host.engine.receive(enrichTrigger(trigger))
     if (result === 'stored') this.request()
     return result
   }

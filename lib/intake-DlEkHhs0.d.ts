@@ -2,7 +2,6 @@ import { Volatile } from "@deepseek-ai/cordis";
 import { z } from "zod";
 import s from "@deepseek-ai/schemastery";
 import "@deepseek-ai/dsh-subprocess";
-//#region src/deployment.d.ts
 /** Plugin configuration of the dsh-superagent entry. Volatile fields apply without a restart because dsh-superagent reads them on each use; changing `stateDir` remounts the plugin. */
 declare const Config: s<Schemastery.ObjectS<NoInfer<{
   stateDir: s<string, string, "defined">;
@@ -38,8 +37,6 @@ interface FeishuBot {
   botId: string;
   name: string;
 }
-//#endregion
-//#region src/core/reasons.d.ts
 /**
  * Structured reason codes and templates for decisions, filtered triggers, and ended assignments.
  * Policy gates and source scopes may also emit their own literal reason codes.
@@ -76,8 +73,6 @@ interface Reason {
 declare const said: (text: string) => Reason;
 /** Formats reasons in English (prefixed by `triggerId` when present) for agent consumption. */
 declare function reasonText(reasons: readonly Reason[] | Reason | undefined): string;
-//#endregion
-//#region src/core/model.d.ts
 /** Actor identity in the source's own vocabulary; Policy decides which actors may originate work on that Source. */
 interface ActorRef {
   source: string;
@@ -507,8 +502,6 @@ declare function readUntil(ticket: Pick<Ticket, 'assignments'>, progress?: boole
  * since. A later report that is neither, a person's message, or a retry, which starts a new Assignment, lifts it.
  */
 declare function waitsForPerson(ticket: Ticket): boolean;
-//#endregion
-//#region src/core/ports.d.ts
 /** Gate admission result: either inadmissible with a reason code, or admissible with strength and MandateBasis. */
 type GateResult = {
   admissible: false;
@@ -721,8 +714,5 @@ interface Repositories {
     byThread(key: string): Decision[];
   };
 }
-//#endregion
-//#region src/core/intake.d.ts
 type ReceiveResult = 'stored' | 'duplicate' | 'filtered';
-//#endregion
 export { settled as $, MandateBasis as A, TicketEndBy as B, Decision as C, Follow as D, Execution as E, Thread as F, followupOwners as G, TicketOutcome as H, ThreadFact as I, latestReport as J, isoTime as K, ThreadFacts as L, ReportState as M, Strength as N, FollowupRecords as O, Text as P, runningAssignment as Q, ThreadRef as R, ChannelRef as S, Evaluation as T, Trigger as U, TicketInput as V, TriggerDisposition as W, reached as X, liveTicket as Y, readUntil as Z, ActorRef as _, DomainEvent as a, ReasonCode as at, AssignmentState as b, GateResult as c, Config as ct, Policy as d, threadKey as et, ReplyStatus as f, AcceptMode as g, SourceScope as h, Candidate as i, Reason as it, PolicyEffect as j, Mandate as k, OutboundMessage as l, Deployment as lt, ScopeResult as m, AssessmentOutcome as n, waitsForPerson as nt, DomainEvents as o, reasonText as ot, Repositories as p, latestAssignment as q, Assessor as r, REASONS as rt, Executor as s, said as st, ReceiveResult as t, ticketOutcome as tt, Outbox as u, DeploymentConfig as ut, AdmissionCell as v, DecisionKind as w, Attention as x, Assignment as y, Ticket as z };

@@ -28,9 +28,15 @@
 
 ```
 src/sources/msp.ts               MSP → Trigger（推送，不轮询）· 无人称 actor
-src/sources/experiences.ts       读经验库，按信号路径命中才注入
+src/sources/msp-act.ts           接入的另一半：看得见节点、发得出信号、调得动工具
+src/sources/tacit.ts             经验层：Mem + Exp + SKILL 三库一层，命中才注入
+src/sources/experiences.ts       旧名字的兼容入口（实现已收进 tacit.ts，不存第二份解析器）
 src/sources/experience-tools.ts  经验 CRUD（list/read/create/update/disable）
+src/sources/tacit-tools.ts       三库 CRUD（tacit_list/read/create/disable）
 python/msp_bridge.py             MSP 信号 → 每行一条 JSON
+tests/tacit.test.ts              17 项
+tests/tacit-tools.test.ts        9 项
+tests/msp-act.test.ts            10 项
 tests/msp.test.mjs               8 项
 ```
 
@@ -150,13 +156,19 @@ enabled: true
 
 ## 状态
 
-- MSP → Trigger → Engine：**通**（实测收到多条信号，`received` 计数递增）
-- 经验命中注入：**通**（日志：`经验 installer-ask,zip-archive`）
-- 经验 → 行为改变：**未验证**——Eval 目前对这批信号不开单，瓶颈在决策阈值，不在经验供给
-
-最后一条是诚实的：这条链的末端还没接上。
+- **接入（补丁一）**：`msp_nodes` 看得见邻居及其声明、`msp_publish` 能往任意路径发信号、`msp_call` 能调对端声明的工具 → **通了**。判据是「接一台新设备要不要改代码」，答案是不要。
+- **经验层（补丁二）**：Mem + Exp + SKILL 共用一套解析与匹配，注入点从 `msp.ts` 挪到了 `Passes.receive`——所有来源（GitHub / 飞书 / MSP / 以后新加的）走的是同一个入口，所以「经验只有本机信号能用」这个限制没了。
+- **命中才注入**：没命中的条目一个字都不进提示词；命中 id 写进 `meta.tacit`，可以拿来做消融。行为改变**仍未验证**——这一层把「依据」摆到模型面前，服从与否取决于 Eval 的决策阈值，不在这一层。这条仍然是诚实的缺口。
 
 测试（`pnpm test`，Windows 实测）：1202 个用例，1153 通过 / 42 失败 / 7 跳过。失败集中在 `service-script`、`sources`、`environment`、`deployment`（POSIX 语义：文件权限位、PATH 改写、shell shim）和 `docs`（007 文档的模块表、测试表没列全）。Linux 上未实测——徽章里的 `1202 cases` 是用例数，不是通过率。
+
+另外三条**不需要装依赖**就能跑（Node ≥ 24 直接执行 `.ts`，见 [009](docs/009-tacit.md)）：
+
+```sh
+node --test tests/tacit.test.ts        # 17 项
+node --test tests/tacit-tools.test.ts  #  9 项
+node --test tests/msp-act.test.ts      # 10 项
+```
 
 ## 贡献者
 
